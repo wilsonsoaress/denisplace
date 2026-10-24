@@ -1,6 +1,16 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
+/** Lê um search param sem repetir o boilerplate em toda lista com filtro. */
+export async function param(
+  busca: Promise<Record<string, string | string[] | undefined>>,
+  chave: string,
+): Promise<string> {
+  const valores = await busca;
+  const valor = valores[chave];
+  return Array.isArray(valor) ? valor[0] ?? '' : valor ?? '';
+}
+
 export function Cabecalho({
   titulo,
   descricao,

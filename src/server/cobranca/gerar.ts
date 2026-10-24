@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../db';
 import { D, money, sum, type Money } from '@/domain/money';
-import { competencia as toCompetencia, vencimentoDaCompetencia, type Competencia, type DateISO } from '@/domain/dates';
+import { competencia as toCompetencia, fimDaCompetencia, vencimentoDaCompetencia, type Competencia, type DateISO } from '@/domain/dates';
 
 export type ResultadoGeracao = {
   competencia: Competencia;
@@ -74,7 +74,9 @@ export async function gerarCobranca(
       cliente: true,
       condominio: true,
       aderencias: {
-        where: { desde: { lte: new Date(`${comp}T23:59:59.000Z`) } },
+        // Corte no ultimo dia do mes: quem aderiu no dia 24 ainda e o devedor da
+        // competencia de outubro, senao o boleto sairia no nome do contratante.
+        where: { desde: { lte: new Date(`${fimDaCompetencia(comp)}T23:59:59.000Z`) } },
         include: { unidade: true, morador: true },
         orderBy: { desde: 'desc' },
         take: 1,

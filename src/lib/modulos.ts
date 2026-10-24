@@ -23,7 +23,7 @@ export const MODULOS: Modulo[] = [
     nome: 'Contratos',
     curto: 'Contratos',
     desc: 'Vigência, itens, reajuste versionado, aderências e aditivos',
-    pronto: false,
+    pronto: true,
   },
   {
     href: '/financeiro/contas-a-receber',

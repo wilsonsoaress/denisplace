@@ -1,16 +1,10 @@
 import Link from 'next/link';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/server/db';
-import { Cabecalho, Filtro, Vazio } from '@/ui/pagina';
+import { Cabecalho, Filtro, Vazio, param } from '@/ui/pagina';
 import { TIPO_PESSOA } from '@/lib/rotulos';
 
 export const metadata = { title: 'Clientes' };
-
-async function param(busca: Promise<Record<string, string | string[] | undefined>>, chave: string) {
-  const valores = await busca;
-  const valor = valores[chave];
-  return Array.isArray(valor) ? valor[0] ?? '' : valor ?? '';
-}
 
 export default async function ClientesPage({
   searchParams,

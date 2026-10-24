@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { D, money, sum, brl } from './money';
 import { acrescimos, adimplenciaPorValor, diasAtraso, situacaoTitulo, totalDevido } from './cobranca';
-import { addMonths, competencia, competenciasEntre, daysInMonth, vencimentoDaCompetencia, diffDays } from './dates';
+import { addDays, addMonths, competencia, competenciasEntre, daysInMonth, fimDaCompetencia, vencimentoDaCompetencia, diffDays } from './dates';
 
 describe('dinheiro', () => {
   it('nao sofre de erro de float', () => {
@@ -127,5 +127,44 @@ describe('adimplencia', () => {
 
   it('retorna null quando nada estava vencivel (competencia futura)', () => {
     expect(adimplenciaPorValor(D(0), D(0))).toBeNull();
+  });
+});
+
+describe('contagem de dias em calendario real', () => {
+  // diffDays usou Date.UTC com mes 1-12: "31/01" rolava para marco e a diferenca
+  // encolhia, cobrando menos juros do que o contrato manda.
+  it('nao perde dias quando o mes de origem tem 31', () => {
+    expect(diffDays('2026-01-31', '2026-02-28')).toBe(28);
+    expect(diffDays('2026-01-31', '2026-03-01')).toBe(29);
+    expect(diffDays('2024-01-31', '2024-02-29')).toBe(29);
+  });
+
+  it('corta no fim do mes sem depender de ano bissexto', () => {
+    expect(diffDays('2026-02-01', '2026-03-01')).toBe(28);
+    expect(diffDays('2026-11-30', '2026-12-31')).toBe(31);
+    expect(diffDays('2026-12-31', '2027-01-31')).toBe(31);
+  });
+
+  it('addDays atravessa mes e ano', () => {
+    expect(addDays('2026-01-31', 1)).toBe('2026-02-01');
+    expect(addDays('2026-12-31', 1)).toBe('2027-01-01');
+    expect(addDays('2026-03-01', -1)).toBe('2026-02-28');
+  });
+
+  // O corte de adesao da cobranca usa o ultimo dia do mes: quem entra no dia 24
+  // ainda e o devedor da competencia.
+  it('fimDaCompetencia respeita o tamanho real do mes', () => {
+    expect(fimDaCompetencia('2026-10-01')).toBe('2026-10-31');
+    expect(fimDaCompetencia('2026-02-01')).toBe('2026-02-28');
+    expect(fimDaCompetencia('2024-02-01')).toBe('2024-02-29');
+    expect(fimDaCompetencia('2026-11-01')).toBe('2026-11-30');
+  });
+
+  it('juros de 31 dias sobre 189 usam a contagem correta', () => {
+    const dias = diffDays('2026-01-31', '2026-03-03');
+    expect(dias).toBe(31);
+    // multa 3,78 + juros 1,89 * 31/30 = 5,73; com a contagem antiga daria 5,52
+    expect(acrescimos(D(189), dias).toFixed(2)).toBe('5.73');
+    expect(acrescimos(D(189), diffDays('2026-01-31', '2026-02-28')).toFixed(2)).toBe('5.54');
   });
 });

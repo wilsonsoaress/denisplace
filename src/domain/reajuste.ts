@@ -38,6 +38,19 @@ function mesesEntre(de: Competencia, ate: Competencia): number {
   return (aAte as number) * 12 + ((mAte as number) - 1) - ((aDe as number) * 12 + ((mDe as number) - 1)) + 1;
 }
 
+/**
+ * Janela cujo acumulado entra no reajuste da competencia `comp`: os `meses`
+ * anteriores a ela. A tela de preview e a acao que aplica usam esta funcao para
+ * que o numero mostrado seja exatamente o numero gravado no aditivo.
+ */
+export function janelaDeReajuste(
+  comp: Competencia,
+  periodicidade: 'ANUAL' | 'SEMESTRAL',
+): { desde: Competencia; ate: Competencia; meses: number } {
+  const meses = periodicidade === 'SEMESTRAL' ? 6 : 12;
+  return { desde: addMonths(comp, -meses) as Competencia, ate: addMonths(comp, -1) as Competencia, meses };
+}
+
 export function novoPreco(precoAtual: Money, acumuladoPct: Money): Money {
   return money(precoAtual.times(D(1).plus(acumuladoPct.div(100))));
 }

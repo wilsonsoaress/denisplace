@@ -44,6 +44,12 @@ export function competencia(value: DateISO): Competencia {
   return `${value.slice(0, 7)}-01`;
 }
 
+/** Ultimo dia da competencia. */
+export function fimDaCompetencia(comp: Competencia): DateISO {
+  const [ano, mes] = comp.slice(0, 7).split('-').map(Number);
+  return `${comp.slice(0, 7)}-${String(daysInMonth(ano as number, mes as number)).padStart(2, '0')}`;
+}
+
 export function addMonths(value: string, meses: number): string {
   const [y, m, d] = value.split('-').map(Number);
   const ano = y as number;
@@ -64,6 +70,13 @@ export function vencimentoDaCompetencia(comp: Competencia, dia: number): DateISO
   return `${comp.slice(0, 7)}-${String(diaFinal).padStart(2, '0')}`;
 }
 
+/** Deslocamento em dias corridos, em calendario real (mesta noite de mes inclusiva). */
+export function addDays(value: DateISO, dias: number): DateISO {
+  const d = toDate(assertDate(value));
+  d.setUTCDate(d.getUTCDate() + dias);
+  return toISO(d) as DateISO;
+}
+
 /** Diferenca em dias corridos (b - a). */
 export function diffDays(a: DateISO, b: DateISO): number {
   const da = Date.UTC(...utcParts(a));
@@ -73,7 +86,8 @@ export function diffDays(a: DateISO, b: DateISO): number {
 
 function utcParts(value: DateISO): [number, number, number] {
   const [y, m, d] = assertDate(value).split('-').map(Number);
-  return [y as number, m as number, d as number];
+  // Date.UTC espera mes 0-11: sem o -1, "31/01" +1 mes vira "03/03" e a diferenca encolhe.
+  return [y as number, (m as number) - 1, d as number];
 }
 
 export function compare(a: DateISO, b: DateISO): number {
