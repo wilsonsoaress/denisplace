@@ -44,7 +44,7 @@ export const MODULOS: Modulo[] = [
     nome: 'Dashboard financeiro',
     curto: 'Dashboard',
     desc: 'KPIs, adimplência por competência e controle de emissão',
-    pronto: false,
+    pronto: true,
   },
   {
     href: '/orcamentos',

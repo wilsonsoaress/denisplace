@@ -8,7 +8,7 @@ import { SITUACAO_LABEL } from '@/domain/cobranca';
 import { FORMA_PAGAMENTO, TIPO_EMISSAO } from '@/lib/rotulos';
 import { Cabecalho } from '@/ui/pagina';
 import { retirarIsencao } from '@/server/acoes/contas';
-import { CHIP_SITUACAO, linhaDeTitulo } from '../dados';
+import { CHIP_SITUACAO, linhaDeTitulo } from '@/server/relatorios/titulos';
 import { BotaoDesmarcar, FormEmissaoTitulo, FormEstorno, FormIsencao, FormPagamento } from '../formularios';
 
 export const metadata = { title: 'Título' };

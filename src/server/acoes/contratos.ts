@@ -504,6 +504,7 @@ export async function gerarCobrancaDoContrato(
   const saida = await gerarCobranca(comp, { contratoIds: [contratoId] });
   revalidatePath(`/contratos/${contratoId}`);
   revalidatePath('/financeiro/contas-a-receber');
+  revalidatePath('/financeiro/dashboard');
 
   if (saida.criadas === 0) {
     const motivo = saida.puladas[0]?.motivo ?? (saida.jaExistiam ? 'fatura já existe nesta competência' : 'nada a cobrar');

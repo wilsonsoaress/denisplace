@@ -58,6 +58,8 @@ async function reaplicarQuitacao(
 function revalidar(tituloId: string) {
   revalidatePath('/financeiro/contas-a-receber');
   revalidatePath(`/financeiro/contas-a-receber/${tituloId}`);
+  // Criterio de aceite da F1: dar baixa na grade e ver o dashboard mudar na mesma sessao.
+  revalidatePath('/financeiro/dashboard');
 }
 
 async function recarregar(tituloId: string): Promise<TituloCarregado | null> {
@@ -302,6 +304,7 @@ export async function marcarEmitido(_prev: EstadoForm, fd: FormData): Promise<Es
   }
 
   revalidatePath('/financeiro/contas-a-receber');
+  revalidatePath('/financeiro/dashboard');
   return {
     mensagem: `${TIPO_EMISSAO[tipo]}: ${titulos.length} título(s) marcados como emitidos hoje (${brl(valorTotal)}).`,
   };

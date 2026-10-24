@@ -7,7 +7,8 @@ import { hoje } from '@/domain/dates';
 import { marcarEmitido } from '@/server/acoes/contas';
 import { Cabecalho, Filtro, Vazio } from '@/ui/pagina';
 import { Formulario } from '@/ui/form';
-import { CHIP_SITUACAO, lerFiltros, linhasDosTitulos, LIMITE_LINHAS, SITUACAO_FILTRO, type Linha } from './dados';
+import { CHIP_SITUACAO, type Linha } from '@/server/relatorios/titulos';
+import { lerFiltros, linhasDosTitulos, LIMITE_LINHAS, SITUACAO_FILTRO } from './dados';
 
 export const metadata = { title: 'Contas a receber' };
 

@@ -1,22 +1,16 @@
-import { Prisma, type FormaPagamento } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/server/db';
 import { FORMA_PAGAMENTO } from '@/lib/rotulos';
-import { D, money, type Money } from '@/domain/money';
-import { competencia, hoje, toISO, type Competencia, type DateISO } from '@/domain/dates';
-import {
-  SITUACAO_LABEL,
-  acrescimos,
-  diasAtraso,
-  estadoQuitacao,
-  situacaoTitulo,
-  type PagamentoResumo,
-  type Situacao,
-} from '@/domain/cobranca';
+import { type Money } from '@/domain/money';
+import { hoje, type Competencia, type DateISO } from '@/domain/dates';
+import { SITUACAO_LABEL } from '@/domain/cobranca';
+import { linhaDeTitulo, type Linha } from '@/server/relatorios/titulos';
 
 /**
  * A grade de contas a receber e o CSV de inadimplencia saem da mesma funcao de
  * linhas: se o saldo do CSV diferisse do saldo da tela, a conciliacao com a
- * planilha antiga nao fecharia.
+ * planilha antiga nao fecharia. O "quanto deve" de cada linha vem de
+ * `@/server/relatorios/titulos`, a mesma fonte do dashboard e da matriz.
  */
 
 export type Filtros = {
@@ -46,91 +40,6 @@ export function lerFiltros(bruto: Record<string, string | string[] | undefined>)
     controle: CONTROLES.includes(controle) ? controle : '',
   };
 }
-
-export type Linha = {
-  id: string;
-  numero: string;
-  contratoId: string;
-  contratoNumero: number;
-  devedor: string;
-  condominio: string | null;
-  comp: Competencia;
-  vencimento: DateISO;
-  valorOriginal: Money;
-  situacao: Situacao;
-  dias: number;
-  acr: Money;
-  recebido: Money;
-  saldo: Money | null;
-  boletoGerado: boolean;
-  nossoNumero: string | null;
-  nfEmitida: boolean;
-  nfNumero: string | null;
-  pagoEm: DateISO | null;
-  forma: FormaPagamento | null;
-  isentoMotivo: string | null;
-};
-
-export function linhaDeTitulo(
-  t: Prisma.TituloGetPayload<{ include: { pagamentos: true; contrato: { select: { id: true; numero: true } } } }>,
-  hojeStr: DateISO,
-): Linha {
-  const valorOriginal = money(D(t.valorOriginal));
-  const vencimento = toISO(t.vencimento) as DateISO;
-  const pagamentos = t.pagamentos
-    .filter((p) => !p.anulado)
-    .map<PagamentoResumo>((p) => ({ valor: money(D(p.valor)), data: toISO(p.data) as DateISO }));
-
-  const situacao = situacaoTitulo({ pago: t.pago, isento: t.isento, vencimento, hoje: hojeStr });
-  const estado = estadoQuitacao({ valorOriginal, vencimento, pagamentos, hoje: hojeStr });
-  const recebido = pagamentos.reduce<Money>((acc, p) => acc.plus(p.valor), D(0));
-  const dias = situacao === 'vencido' ? diasAtraso(vencimento, hojeStr) : 0;
-  // Pago: o acréscimo efetivamente cobrado é o que entrou a mais no recebimento.
-  // Vencido: o acréscimo correto é o de hoje, sobre o valor original.
-  const acr =
-    situacao === 'pago'
-      ? money(recebido.minus(valorOriginal)).lessThan(0)
-        ? D(0)
-        : money(recebido.minus(valorOriginal))
-      : situacao === 'vencido'
-        ? acrescimos(valorOriginal, dias)
-        : D(0);
-
-  // Um título já quitado não volta a dever: os acréscimos congelaram na data do
-  // pagamento, mesmo que o recibo da planilha antiga não tenha incluído multa e juros.
-  const saldo = t.pago ? D(0) : situacao === 'isento' ? null : estado.saldo;
-
-  return {
-    id: t.id,
-    numero: t.numero,
-    contratoId: t.contratoId,
-    contratoNumero: t.contrato.numero,
-    devedor: t.devedorNome,
-    condominio: t.condominioNome,
-    comp: competencia(toISO(t.competencia) as DateISO) as Competencia,
-    vencimento,
-    valorOriginal,
-    situacao,
-    dias,
-    acr,
-    recebido,
-    saldo,
-    boletoGerado: t.boletoGerado,
-    nossoNumero: t.nossoNumero,
-    nfEmitida: t.nfEmitida,
-    nfNumero: t.nfNumero,
-    pagoEm: toISO(t.pagoEm),
-    forma: t.forma,
-    isentoMotivo: t.isentoMotivo,
-  };
-}
-
-export const CHIP_SITUACAO: Record<Situacao, string> = {
-  pago: 'chip chip-ok',
-  vencido: 'chip chip-bad',
-  aberto: 'chip chip-warn',
-  isento: 'chip chip-free',
-};
 
 export const SITUACAO_FILTRO: Record<string, string> = {
   pendente: 'Em aberto (não pagas)',
@@ -176,7 +85,10 @@ export async function linhasDosTitulos(f: Filtros): Promise<Linha[]> {
 
   const titulos = await prisma.titulo.findMany({
     where,
-    include: { pagamentos: true, contrato: { select: { id: true, numero: true } } },
+    include: {
+      pagamentos: true,
+      contrato: { select: { id: true, numero: true, condominioId: true } },
+    },
     orderBy: [{ vencimento: 'asc' }, { numero: 'asc' }],
     take: LIMITE_LINHAS,
   });
