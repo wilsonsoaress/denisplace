@@ -30,7 +30,7 @@ export const MODULOS: Modulo[] = [
     nome: 'Contas a receber',
     curto: 'Contas a receber',
     desc: 'NF, boleto, pago + data, multa/juros e ações em lote',
-    pronto: false,
+    pronto: true,
   },
   {
     href: '/financeiro/matriz',

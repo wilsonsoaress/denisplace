@@ -25,10 +25,13 @@ function capturar(fd: FormData): Record<string, string> {
 export function Formulario({
   acao,
   textoSubmit = 'Salvar',
+  submit,
   children,
 }: {
   acao: (prev: EstadoForm, fd: FormData) => Promise<EstadoForm>;
   textoSubmit?: string;
+  /** Troca o botão único: usado quando cada submit carrega um valor próprio (emissão em lote). */
+  submit?: ReactNode;
   children: ReactNode;
 }) {
   const enviados = useRef<Record<string, string>>({});
@@ -56,17 +59,26 @@ export function Formulario({
   return (
     <ErrosContext.Provider value={estado?.erros ?? {}}>
       <form ref={formRef} action={dispatch} className="space-y-4">
+        {estado?.erros?._ ? (
+          <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">
+            {estado.erros._}
+          </p>
+        ) : null}
         {estado?.mensagem ? (
           <p className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800" role="status">
             {estado.mensagem}
           </p>
         ) : null}
         {children}
-        <div className="flex items-center gap-2">
-          <button type="submit" disabled={pendente} className="btn btn-primary">
-            {pendente ? 'Salvando…' : textoSubmit}
-          </button>
-        </div>
+        {submit === false ? null : (
+          <div className="flex flex-wrap items-center gap-2">
+            {submit ?? (
+              <button type="submit" disabled={pendente} className="btn btn-primary">
+                {pendente ? 'Salvando…' : textoSubmit}
+              </button>
+            )}
+          </div>
+        )}
       </form>
     </ErrosContext.Provider>
   );

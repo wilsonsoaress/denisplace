@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { D, money, sum, brl } from './money';
-import { acrescimos, adimplenciaPorValor, diasAtraso, situacaoTitulo, totalDevido } from './cobranca';
+import { acrescimos, adimplenciaPorValor, diasAtraso, devidoNaData, estadoQuitacao, situacaoTitulo, totalDevido, type PagamentoResumo } from './cobranca';
 import { addDays, addMonths, competencia, competenciasEntre, daysInMonth, fimDaCompetencia, vencimentoDaCompetencia, diffDays } from './dates';
 
 describe('dinheiro', () => {
@@ -166,5 +166,72 @@ describe('contagem de dias em calendario real', () => {
     // multa 3,78 + juros 1,89 * 31/30 = 5,73; com a contagem antiga daria 5,52
     expect(acrescimos(D(189), dias).toFixed(2)).toBe('5.73');
     expect(acrescimos(D(189), diffDays('2026-01-31', '2026-02-28')).toFixed(2)).toBe('5.54');
+  });
+});
+
+describe('quitacao de titulo com pagamento parcial e estorno', () => {
+  const vencimento = '2026-10-10';
+  const hojeTela = '2026-10-24';
+
+  it('pagamento integral na data congela os acrescimos naquela data', () => {
+    // 14 dias de atraso: multa 3,78 + juros 0,88 = 4,66 sobre 189
+    const devido = devidoNaData(D(189), vencimento, '2026-10-24');
+    expect(devido.toFixed(2)).toBe('193.66');
+    const r = estadoQuitacao({
+      valorOriginal: D(189),
+      vencimento,
+      pagamentos: [{ valor: devido, data: '2026-10-24' }],
+      hoje: hojeTela,
+    });
+    expect(r.pago).toBe(true);
+    expect(r.saldo.toFixed(2)).toBe('0.00');
+  });
+
+  it('parcial nao quita e devolve o saldo do dia', () => {
+    const r = estadoQuitacao({
+      valorOriginal: D(189),
+      vencimento,
+      pagamentos: [{ valor: D(100), data: '2026-10-20' }],
+      hoje: hojeTela,
+    });
+    expect(r.pago).toBe(false);
+    expect(r.saldo.toFixed(2)).toBe('93.66');
+  });
+
+  it('estorno do parcial faz o titulo voltar a aberto sem virar credor', () => {
+    // A borda (acao) tira os pagamentos anulados antes de chamar: aqui so entram os validos.
+    const quitado = estadoQuitacao({
+      valorOriginal: D(189),
+      vencimento,
+      pagamentos: [{ valor: D(193.66), data: '2026-10-24' }],
+      hoje: hojeTela,
+    });
+    expect(quitado.pago).toBe(true);
+
+    const soComEstorno = estadoQuitacao({
+      valorOriginal: D(189),
+      vencimento,
+      pagamentos: [{ valor: D(50), data: '2026-10-24' }],
+      hoje: '2027-10-10',
+    });
+    expect(soComEstorno.pago).toBe(false);
+    expect(soComEstorno.saldo.gt(D(0))).toBe(true);
+  });
+
+  it('pagamento em dia nao tem acrescimo nenhum', () => {
+    const r = estadoQuitacao({
+      valorOriginal: D(189),
+      vencimento,
+      pagamentos: [{ valor: D(189), data: '2026-10-05' }],
+      hoje: hojeTela,
+    });
+    expect(r.pago).toBe(true);
+    expect(r.devidoNaUltimaData?.toFixed(2)).toBe('189.00');
+  });
+
+  it('soma zerada nao quita titulo em aberto', () => {
+    const r = estadoQuitacao({ valorOriginal: D(189), vencimento, pagamentos: [], hoje: hojeTela });
+    expect(r.pago).toBe(false);
+    expect(r.saldo.toFixed(2)).toBe('193.66');
   });
 });

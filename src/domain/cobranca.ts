@@ -53,6 +53,43 @@ export function totalDevido(input: {
 }
 
 /**
+ * Quanto o titulo custaria se fosse pago naquela data. Os acrescimos param de
+ * correr na data do pagamento: quem quitou no dia 15 nao passa a dever mais
+ * so porque a tela foi aberta no dia 24.
+ */
+export function devidoNaData(valorOriginal: Money, vencimento: DateISO, data: DateISO): Money {
+  return money(valorOriginal.plus(acrescimos(valorOriginal, diasAtraso(vencimento, data))));
+}
+
+/** Pagamento valido para a conta de quitacao: os anulados ficam de fora (a borda filtra). */
+export type PagamentoResumo = { valor: Money; data: DateISO };
+
+/**
+ * Regra unica de quitacao, usada pelo cadastro de pagamento e pelo estorno.
+ * Devolve tambem o saldo, para a tela falar o mesmo numero que o banco.
+ */
+export function estadoQuitacao(input: {
+  valorOriginal: Money;
+  vencimento: DateISO;
+  pagamentos: PagamentoResumo[];
+  hoje: DateISO;
+}): { pago: boolean; saldo: Money; devidoNaUltimaData: Money | null } {
+  const pagos = input.pagamentos.filter((p) => !p.valor.isZero());
+  const soma = pagos.reduce<Money>((acc, p) => acc.plus(p.valor), D(0));
+  const ultima = pagos.reduce<DateISO | null>(
+    (acc, p) => (acc === null || p.data > acc ? p.data : acc),
+    null,
+  );
+
+  if (ultima !== null && money(soma).gte(devidoNaData(input.valorOriginal, input.vencimento, ultima))) {
+    return { pago: true, saldo: D(0), devidoNaUltimaData: devidoNaData(input.valorOriginal, input.vencimento, ultima) };
+  }
+  const devidoHoje = devidoNaData(input.valorOriginal, input.vencimento, input.hoje);
+  const saldo = money(devidoHoje.minus(soma));
+  return { pago: false, saldo: saldo.isNegative() ? D(0) : saldo, devidoNaUltimaData: ultima === null ? null : devidoNaData(input.valorOriginal, input.vencimento, ultima) };
+}
+
+/**
  * Isento por convenio fica FORA do numerador e do denominador da adimplencia.
  * Contar isento como "não pago" faria o indice cair sem ninguem ter atrasado.
  */
