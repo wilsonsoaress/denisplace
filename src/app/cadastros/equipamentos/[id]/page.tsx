@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { exigirPagina } from '@/auth/guard';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/server/db';
 import { salvarEquipamento } from '@/server/acoes/equipamentos';
@@ -17,6 +18,7 @@ export default async function EquipamentoPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await exigirPagina('/cadastros/equipamentos/[id]');
   const { id } = await params;
   const salvo = (await searchParams).salvo !== undefined;
 

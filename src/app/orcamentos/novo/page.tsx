@@ -1,4 +1,5 @@
 import { criarOrcamento } from '@/server/acoes/orcamentos';
+import { exigirPagina, podeEditar } from '@/auth/guard';
 import { Cabecalho } from '@/ui/pagina';
 import { listasParaContrato } from '@/app/contratos/dados';
 import { FormOrcamento } from '../formularios';
@@ -6,6 +7,8 @@ import { FormOrcamento } from '../formularios';
 export const metadata = { title: 'Novo orçamento' };
 
 export default async function NovoOrcamentoPage() {
+  await exigirPagina('/orcamentos/novo');
+  const editar = await podeEditar('orcamentos');
   const listas = await listasParaContrato();
 
   return (
@@ -17,7 +20,13 @@ export default async function NovoOrcamentoPage() {
       />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <section className="card">
-          <FormOrcamento acao={criarOrcamento} listas={listas} />
+          {editar ? (
+            <FormOrcamento acao={criarOrcamento} listas={listas} />
+          ) : (
+            <p className="text-sm text-slate-600">
+              Seu perfil só lê orçamentos: quem monta e converte é o comercial.
+            </p>
+          )}
         </section>
         <section className="card text-sm text-slate-600">
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Fluxo</h2>

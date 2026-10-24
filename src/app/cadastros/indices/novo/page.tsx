@@ -1,4 +1,5 @@
 import { salvarIndice } from '@/server/acoes/indices';
+import { exigirPagina } from '@/auth/guard';
 import { Cabecalho } from '@/ui/pagina';
 import { Campo, Formulario, Texto, type EstadoForm } from '@/ui/form';
 
@@ -25,7 +26,8 @@ function FormIndice({
   );
 }
 
-export default function NovoIndicePage() {
+export default async function NovoIndicePage() {
+  await exigirPagina('/cadastros/indices/novo');
   return (
     <>
       <Cabecalho

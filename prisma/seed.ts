@@ -7,6 +7,7 @@
  * antes de as telas existirem.
  */
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 import { gerarCobranca } from '../src/server/cobranca/gerar';
 import { addMonths, type Competencia } from '../src/domain/dates';
 
@@ -104,11 +105,14 @@ async function main() {
   await prisma.auditLog.deleteMany();
   await prisma.user.deleteMany();
 
+  // Senha de demonstracao unica: em producao cada pessoa troca no primeiro acesso.
+  const hash = bcrypt.hashSync('denis123', 10);
   await prisma.user.createMany({
     data: [
-      { nome: 'Denis Admin', email: 'admin@denisplace.com.br', papel: 'ADMIN', passwordHash: 'seed-sem-senha' },
-      { nome: 'Renata Financeiro', email: 'financeiro@denisplace.com.br', papel: 'FINANCEIRO', passwordHash: 'seed-sem-senha' },
-      { nome: 'Paulo Comercial', email: 'comercial@denisplace.com.br', papel: 'COMERCIAL', passwordHash: 'seed-sem-senha' },
+      { nome: 'Denis Admin', email: 'admin@denisplace.com.br', papel: 'ADMIN', passwordHash: hash },
+      { nome: 'Renata Financeiro', email: 'financeiro@denisplace.com.br', papel: 'FINANCEIRO', passwordHash: hash },
+      { nome: 'Paulo Comercial', email: 'comercial@denisplace.com.br', papel: 'COMERCIAL', passwordHash: hash },
+      { nome: 'Sérgio Técnico', email: 'tecnico@denisplace.com.br', papel: 'TECNICO', passwordHash: hash },
     ],
   });
 

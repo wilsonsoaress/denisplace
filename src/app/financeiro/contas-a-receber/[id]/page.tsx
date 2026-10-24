@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { exigirPagina, podeEditar } from '@/auth/guard';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { prisma } from '@/server/db';
@@ -23,7 +24,9 @@ function Dado({ rotulo, children }: { rotulo: string; children: ReactNode }) {
 }
 
 export default async function TituloPage({ params }: { params: Promise<{ id: string }> }) {
+  await exigirPagina('/financeiro/contas-a-receber/[id]');
   const { id } = await params;
+  const editar = await podeEditar('financeiro');
 
   const titulo = await prisma.titulo.findUnique({
     where: { id },
@@ -50,7 +53,10 @@ export default async function TituloPage({ params }: { params: Promise<{ id: str
         descricao={`${l.devedor}${l.condominio ? ` · ${l.condominio}` : ''} · competência ${l.comp.slice(0, 7)} · contrato #${l.contratoNumero}`}
         voltar={{ href: '/financeiro/contas-a-receber', label: 'Voltar para contas a receber' }}
         acoes={
-          <span className={CHIP_SITUACAO[l.situacao]}>{SITUACAO_LABEL[l.situacao]}</span>
+          <>
+            {!editar ? <span className="chip chip-free">somente leitura</span> : null}
+            <span className={CHIP_SITUACAO[l.situacao]}>{SITUACAO_LABEL[l.situacao]}</span>
+          </>
         }
       />
 
@@ -87,7 +93,7 @@ export default async function TituloPage({ params }: { params: Promise<{ id: str
 
           <section className="card">
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Pagamentos</h2>
-            {podePagar ? (
+            {podePagar && editar ? (
               <div className="mb-4 border-b border-slate-100 pb-4">
                 <FormPagamento tituloId={l.id} saldo={l.saldo ?? l.valorOriginal} vencimento={l.vencimento} />
               </div>
@@ -133,7 +139,7 @@ export default async function TituloPage({ params }: { params: Promise<{ id: str
                           <p className="text-xs text-slate-500">Motivo do estorno: {p.anuladoMotivo}</p>
                         ) : null}
                       </div>
-                      {!p.anulado ? (
+                      {!p.anulado && editar ? (
                         <details className="w-full sm:w-auto">
                           <summary className="cursor-pointer text-xs text-slate-500 hover:text-red-700">estornar</summary>
                           <div className="mt-2">
@@ -162,9 +168,11 @@ export default async function TituloPage({ params }: { params: Promise<{ id: str
                       <span className="chip chip-ok">emitido</span>
                       <span className="num ml-2 text-xs text-slate-600">{toISO(titulo.boletoEmitidoEm)}</span>
                       {l.nossoNumero ? <span className="num ml-2 text-xs text-slate-600">{l.nossoNumero}</span> : null}
-                      <div className="mt-1">
-                        <BotaoDesmarcar tituloId={l.id} campo="boleto" rotulo="desmarcar emissão" />
-                      </div>
+                      {editar ? (
+                        <div className="mt-1">
+                          <BotaoDesmarcar tituloId={l.id} campo="boleto" rotulo="desmarcar emissão" />
+                        </div>
+                      ) : null}
                     </>
                   ) : (
                     <span className="chip chip-bad">não emitido</span>
@@ -179,9 +187,11 @@ export default async function TituloPage({ params }: { params: Promise<{ id: str
                       <span className="chip chip-ok">emitida</span>
                       <span className="num ml-2 text-xs text-slate-600">{toISO(titulo.nfEmissaoEm)}</span>
                       {l.nfNumero ? <span className="num ml-2 text-xs text-slate-600">NF {l.nfNumero}</span> : null}
-                      <div className="mt-1">
-                        <BotaoDesmarcar tituloId={l.id} campo="nf" rotulo="desmarcar emissão" />
-                      </div>
+                      {editar ? (
+                        <div className="mt-1">
+                          <BotaoDesmarcar tituloId={l.id} campo="nf" rotulo="desmarcar emissão" />
+                        </div>
+                      ) : null}
                     </>
                   ) : (
                     <span className="chip chip-bad">não emitida</span>
@@ -189,7 +199,7 @@ export default async function TituloPage({ params }: { params: Promise<{ id: str
                 </dd>
               </div>
             </dl>
-            <FormEmissaoTitulo tituloId={l.id} />
+            {editar ? <FormEmissaoTitulo tituloId={l.id} /> : null}
 
             {titulo.lotes.length > 0 ? (
               <div className="mt-4 border-t border-slate-100 pt-3">
@@ -271,16 +281,20 @@ export default async function TituloPage({ params }: { params: Promise<{ id: str
             {titulo.isento ? (
               <div className="space-y-2">
                 <p className="text-sm text-slate-600">{titulo.isentoMotivo}</p>
-                <form action={retirarIsencao.bind(null, l.id)}>
-                  <button type="submit" className="btn">
-                    Retirar isenção
-                  </button>
-                </form>
+                {editar ? (
+                  <form action={retirarIsencao.bind(null, l.id)}>
+                    <button type="submit" className="btn">
+                      Retirar isenção
+                    </button>
+                  </form>
+                ) : null}
               </div>
             ) : titulo.pago ? (
               <p className="text-sm text-slate-500">Título quitado: isenção não se aplica.</p>
-            ) : (
+            ) : editar ? (
               <FormIsencao tituloId={l.id} valorOriginal={l.valorOriginal} />
+            ) : (
+              <p className="text-sm text-slate-500">Seu perfil só lê a cobrança: peça ao financeiro para isentar.</p>
             )}
           </section>
         </div>

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { exigirPagina, podeEditar } from '@/auth/guard';
 import { Prisma, type EscopoCobranca, type StatusContrato } from '@prisma/client';
 import { prisma } from '@/server/db';
 import { brl } from '@/domain/money';
@@ -17,6 +18,8 @@ export default async function ContratosPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await exigirPagina('/contratos');
+  const editar = await podeEditar('contratos');
   const q = await param(searchParams, 'q');
   const statusBruto = await param(searchParams, 'status');
   const escopoBruto = await param(searchParams, 'escopo');
@@ -64,9 +67,11 @@ export default async function ContratosPage({
         titulo="Contratos"
         descricao="Vigência, itens com preço vigente, reajuste versionado e adesões por unidade. Só contrato VIGENTE entra na cobrança do mês."
         acoes={
-          <Link href="/contratos/novo" className="btn btn-primary">
-            Novo contrato
-          </Link>
+          editar ? (
+            <Link href="/contratos/novo" className="btn btn-primary">
+              Novo contrato
+            </Link>
+          ) : null
         }
       />
       <Filtro acao="/contratos" q={q} placeholder="Nome do cliente, condomínio ou nº do contrato">

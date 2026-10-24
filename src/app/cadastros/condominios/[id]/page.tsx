@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { exigirPagina } from '@/auth/guard';
 import { notFound } from 'next/navigation';
 import type { Cliente, Unidade } from '@prisma/client';
 import { prisma } from '@/server/db';
@@ -59,6 +60,7 @@ export default async function CondominioPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await exigirPagina('/cadastros/condominios/[id]');
   const { id } = await params;
   const bruto = await searchParams;
   const salvo = bruto.salvo !== undefined;

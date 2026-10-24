@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { exigirPagina } from '@/auth/guard';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/server/db';
 import { salvarIndice, salvarValorIndice } from '@/server/acoes/indices';
@@ -17,6 +18,7 @@ export default async function IndicePage({
   params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await exigirPagina('/cadastros/indices/[id]');
   const { id } = await params;
   const salvo = (await searchParams).salvo !== undefined;
 

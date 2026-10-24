@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { exigirPagina, podeEditar } from '@/auth/guard';
 import { prisma } from '@/server/db';
 import { brl, D, type Money } from '@/domain/money';
 import { SITUACAO_LABEL } from '@/domain/cobranca';
@@ -31,6 +32,8 @@ export default async function ContasReceberPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await exigirPagina('/financeiro/contas-a-receber');
+  const editar = await podeEditar('financeiro');
   const bruto = await searchParams;
   const filtros = lerFiltros(bruto);
 
@@ -135,16 +138,22 @@ export default async function ContasReceberPage({
         <Formulario
           acao={marcarEmitido}
           submit={
-            <>
+            editar ? (
+              <>
+                <span className="text-xs text-slate-500">
+                  Selecione as linhas e registre a emissão. Cada registro vira um lote auditável.
+                </span>
+                {TIPOS_LOTE.map((t) => (
+                  <button key={t.value} type="submit" name="tipo" value={t.value} className="btn">
+                    {t.label}
+                  </button>
+                ))}
+              </>
+            ) : (
               <span className="text-xs text-slate-500">
-                Selecione as linhas e registre a emissão. Cada registro vira um lote auditável.
+                Seu perfil só lê a cobrança: a emissão em lote é do financeiro.
               </span>
-              {TIPOS_LOTE.map((t) => (
-                <button key={t.value} type="submit" name="tipo" value={t.value} className="btn">
-                  {t.label}
-                </button>
-              ))}
-            </>
+            )
           }
         >
           <div className="card overflow-x-auto p-0">
@@ -171,7 +180,7 @@ export default async function ContasReceberPage({
                   <tr key={l.id}>
                     <td>
                       {/* Título pago também precisa de registro de boleto/NF: emissão e pagamento são controles independentes. */}
-                      {l.situacao === 'isento' ? null : (
+                      {l.situacao === 'isento' || !editar ? null : (
                         <input type="checkbox" name="ids" value={l.id} className="size-4" />
                       )}
                     </td>

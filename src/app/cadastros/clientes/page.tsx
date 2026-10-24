@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { exigirPagina } from '@/auth/guard';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/server/db';
 import { Cabecalho, Filtro, Vazio, param } from '@/ui/pagina';
@@ -11,6 +12,7 @@ export default async function ClientesPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await exigirPagina('/cadastros/clientes');
   const q = await param(searchParams, 'q');
   const inativos = (await param(searchParams, 'inativos')) === '1';
 

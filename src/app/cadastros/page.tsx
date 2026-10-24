@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { exigirPagina } from '@/auth/guard';
 import { Cabecalho } from '@/ui/pagina';
 
 const MODULOS = [
@@ -29,7 +30,8 @@ const MODULOS = [
   },
 ];
 
-export default function CadastrosPage() {
+export default async function CadastrosPage() {
+  await exigirPagina('/cadastros');
   return (
     <>
       <Cabecalho

@@ -1,4 +1,5 @@
 import { criarContrato } from '@/server/acoes/contratos';
+import { exigirPagina, podeEditar } from '@/auth/guard';
 import { hoje } from '@/domain/dates';
 import { Cabecalho } from '@/ui/pagina';
 import { FormContrato } from '../form';
@@ -7,6 +8,8 @@ import { listasParaContrato } from '../dados';
 export const metadata = { title: 'Novo contrato' };
 
 export default async function NovoContratoPage() {
+  await exigirPagina('/contratos/novo');
+  const editar = await podeEditar('contratos');
   const listas = await listasParaContrato();
 
   return (
@@ -19,7 +22,11 @@ export default async function NovoContratoPage() {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <section className="card">
-          <FormContrato acao={criarContrato} listas={listas} inicioPadrao={hoje()} />
+          {editar ? (
+            <FormContrato acao={criarContrato} listas={listas} inicioPadrao={hoje()} />
+          ) : (
+            <p className="text-sm text-slate-600">Seu perfil só lê contratos: quem monta o contrato é o financeiro.</p>
+          )}
         </section>
         <section className="card text-sm text-slate-600">
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Depois de criar</h2>

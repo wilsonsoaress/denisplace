@@ -1,4 +1,5 @@
 import { salvarEquipamento } from '@/server/acoes/equipamentos';
+import { exigirPagina } from '@/auth/guard';
 import { Cabecalho } from '@/ui/pagina';
 import { FormEquipamento } from '../form';
 import { listasParaEquipamento } from '../dados';
@@ -6,6 +7,7 @@ import { listasParaEquipamento } from '../dados';
 export const metadata = { title: 'Novo equipamento' };
 
 export default async function NovoEquipamentoPage() {
+  await exigirPagina('/cadastros/equipamentos/novo');
   const { condominios, grupos } = await listasParaEquipamento();
   return (
     <>

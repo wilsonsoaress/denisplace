@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { exigirPagina } from '@/auth/guard';
 import type { Prisma, StatusEquipamento } from '@prisma/client';
 import { prisma } from '@/server/db';
 import { STATUS_EQUIPAMENTO } from '@/lib/rotulos';
@@ -19,6 +20,7 @@ export default async function EquipamentosPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await exigirPagina('/cadastros/equipamentos');
   const bruto = await searchParams;
   const q = typeof bruto.q === 'string' ? bruto.q : '';
   const status = typeof bruto.status === 'string' ? bruto.status : '';

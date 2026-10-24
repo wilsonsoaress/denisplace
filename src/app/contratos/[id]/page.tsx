@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { exigirPagina, podeEditar } from '@/auth/guard';
 import { notFound } from 'next/navigation';
 import type { ContratoItem } from '@prisma/client';
 import { prisma } from '@/server/db';
@@ -65,6 +66,8 @@ export default async function ContratoPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await exigirPagina('/contratos/[id]');
+  const editar = await podeEditar('contratos');
   const { id } = await params;
   const busca = await searchParams;
   const criado = busca.criado !== undefined;
@@ -174,21 +177,39 @@ export default async function ContratoPage({
         }º dia · vigência ${toISO(contrato.inicio)} a ${contrato.fim ? toISO(contrato.fim) : 'indefinida'}`}
         voltar={{ href: '/contratos', label: 'Voltar para contratos' }}
         acoes={
-          contrato.status === 'DISTRATADO' ? (
-            <span className={chipStatus(contrato.status)}>Distratado</span>
-          ) : (
-            <>
-              {contrato.status === 'RASCUNHO' || contrato.status === 'VENCIDO' ? (
-                <BotaoStatus id={contrato.id} acao="ativar" rotulo="Ativar contrato" primario inutil={ativas.length === 0} />
-              ) : null}
-              {contrato.status === 'SUSPENSO' ? <BotaoStatus id={contrato.id} acao="retomar" rotulo="Retomar" /> : null}
-              {contrato.status === 'VIGENTE' ? (
-                <BotaoStatus id={contrato.id} acao="suspender" rotulo="Suspender" />
-              ) : null}
-            </>
-          )
+          <>
+            {!editar ? <span className="chip chip-free">somente leitura</span> : null}
+            {contrato.status === 'DISTRATADO' ? (
+              <span className={chipStatus(contrato.status)}>Distratado</span>
+            ) : (
+              <>
+                {editar ? (
+                  <>
+                    {contrato.status === 'RASCUNHO' || contrato.status === 'VENCIDO' ? (
+                      <BotaoStatus
+                        id={contrato.id}
+                        acao="ativar"
+                        rotulo="Ativar contrato"
+                        primario
+                        inutil={ativas.length === 0}
+                      />
+                    ) : null}
+                    {contrato.status === 'SUSPENSO' ? <BotaoStatus id={contrato.id} acao="retomar" rotulo="Retomar" /> : null}
+                    {contrato.status === 'VIGENTE' ? <BotaoStatus id={contrato.id} acao="suspender" rotulo="Suspender" /> : null}
+                  </>
+                ) : null}
+              </>
+            )}
+          </>
         }
       />
+
+      {!editar ? (
+        <p className="mb-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700" role="status">
+          Seu perfil só lê contratos: as ações desta tela não gravam nada. Quem altera vigência, itens e cobrança é o
+          financeiro.
+        </p>
+      ) : null}
 
       {criado ? (
         <p className="mb-4 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900" role="status">
@@ -215,7 +236,7 @@ export default async function ContratoPage({
                 .
               </p>
             ) : null}
-            <FormContrato acao={salvarContrato.bind(null, contrato.id)} registro={contrato} listas={listas} />
+            {editar ? <FormContrato acao={salvarContrato.bind(null, contrato.id)} registro={contrato} listas={listas} /> : null}
           </section>
 
           <section className="card">
@@ -269,7 +290,7 @@ export default async function ContratoPage({
                         </td>
                         <td className="num text-xs">{i.proximoReajusteEm ? toISO(i.proximoReajusteEm) : '—'}</td>
                         <td className="whitespace-nowrap text-xs">
-                          {i.ativo ? (
+                          {i.ativo && editar ? (
                             <span className="space-x-2">
                               {i.indiceReajuste && i.periodicidade !== 'NENHUM' ? (
                                 <Link
@@ -286,7 +307,7 @@ export default async function ContratoPage({
                                 encerrar
                               </Link>
                             </span>
-                          ) : (
+                          ) : i.ativo ? null : (
                             <span className="text-xs text-slate-400">histórico</span>
                           )}
                         </td>
@@ -334,7 +355,7 @@ export default async function ContratoPage({
               </div>
             ) : null}
 
-            {contrato.status !== 'DISTRATADO' ? (
+            {contrato.status !== 'DISTRATADO' && editar ? (
               <>
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Adicionar item do catálogo
@@ -396,7 +417,7 @@ export default async function ContratoPage({
                             </span>
                           </td>
                           <td className="text-xs">
-                            {a.situacao === 'ATIVA' ? (
+                            {a.situacao === 'ATIVA' && editar ? (
                               <Link
                                 href={`/contratos/${contrato.id}?encerrar_adesao=${a.id}`}
                                 className="text-slate-500 hover:text-red-700"
@@ -430,14 +451,14 @@ export default async function ContratoPage({
                 </div>
               ) : null}
 
-              {adesoes && adesoes.unidades.length > 0 ? (
+              {adesoes && adesoes.unidades.length > 0 && editar ? (
                 <FormAderencia
                   acao={aderirUnidade.bind(null, contrato.id)}
                   unidades={adesoes.unidades}
                   moradores={adesoes.moradores}
                   desdePadrao={hoje()}
                 />
-              ) : (
+              ) : editar ? (
                 <p className="text-xs text-slate-500">
                   Cadastre as unidades em{' '}
                   <Link href="/cadastros/condominios" className="text-blue-800 hover:underline">
@@ -445,11 +466,19 @@ export default async function ContratoPage({
                   </Link>{' '}
                   antes de aderir.
                 </p>
-              )}
+              ) : null}
             </section>
           ) : null}
 
-          {contrato.status !== 'DISTRATADO' ? (
+          {contrato.status === 'DISTRATADO' ? (
+            <section className="card">
+              <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Distrato</h2>
+              <p className="text-sm">
+                Encerrado em {contrato.distratoEm ? toISO(contrato.distratoEm) : '—'} · motivo:{' '}
+                {contrato.distratoMotivo ?? 'não informado'}
+              </p>
+            </section>
+          ) : editar ? (
             <details className="card">
               <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-slate-500">
                 Distratar contrato
@@ -460,15 +489,7 @@ export default async function ContratoPage({
               </p>
               <FormDistrato acao={distratar.bind(null, contrato.id)} dataPadrao={hoje()} />
             </details>
-          ) : (
-            <section className="card">
-              <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Distrato</h2>
-              <p className="text-sm">
-                Encerrado em {contrato.distratoEm ? toISO(contrato.distratoEm) : '—'} · motivo:{' '}
-                {contrato.distratoMotivo ?? 'não informado'}
-              </p>
-            </section>
-          )}
+          ) : null}
         </div>
 
         <div className="space-y-4">
@@ -509,7 +530,9 @@ export default async function ContratoPage({
                 O job mensal roda para todos os contratos vigentes. Gere aqui quando precisar refazer uma competência
                 específica — reprocessar não duplica.
               </p>
-              <FormGerarCobranca acao={gerarCobrancaDoContrato.bind(null, contrato.id)} compPadrao={compCobranca} />
+              {editar ? (
+                <FormGerarCobranca acao={gerarCobrancaDoContrato.bind(null, contrato.id)} compPadrao={compCobranca} />
+              ) : null}
               {contrato.titulos.length === 0 ? (
                 <p className="mt-3 text-sm text-slate-500">Nenhum título gerado ainda.</p>
               ) : (

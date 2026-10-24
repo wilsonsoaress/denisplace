@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { exigirPagina, podeEditar } from '@/auth/guard';
 import { notFound } from 'next/navigation';
 import type { OrcamentoItem } from '@prisma/client';
 import { prisma } from '@/server/db';
@@ -36,6 +37,7 @@ export default async function OrcamentoPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await exigirPagina('/orcamentos/[id]');
   const { id } = await params;
   const busca = await searchParams;
   const criado = busca.criado !== undefined;
@@ -54,7 +56,8 @@ export default async function OrcamentoPage({
   if (!orcamento) notFound();
 
   const listas = await listasParaContrato();
-  const editavel = EDITAVEL.includes(orcamento.status);
+  const podeGravar = await podeEditar('orcamentos');
+  const editavel = podeGravar && EDITAVEL.includes(orcamento.status);
   const recorrentes = orcamento.itens.filter((i) => i.escopo === 'RECORRENTE');
   const pontuais = orcamento.itens.filter((i) => i.escopo === 'PONTUAL');
   const validadePassada = (toISO(orcamento.validade) ?? '') < hoje();
@@ -172,7 +175,7 @@ export default async function OrcamentoPage({
             </section>
           ) : null}
 
-          {orcamento.status === 'APROVADO' ? (
+          {orcamento.status === 'APROVADO' && podeGravar ? (
             <section className="card">
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Converter</h2>
               <FormConversao acao={converter.bind(null, id)} inicioPadrao={hoje()} />

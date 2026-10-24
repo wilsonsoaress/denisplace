@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { exigirPagina } from '@/auth/guard';
 import type { ReactNode } from 'react';
 import { type EscopoCobranca } from '@prisma/client';
 import { prisma } from '@/server/db';
@@ -112,6 +113,7 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await exigirPagina('/financeiro/dashboard');
   const filtros = lerFiltros(await searchParams);
   const r = await resumoDoPeriodo(filtros);
 

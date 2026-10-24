@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { exigirPagina, podeEditar } from '@/auth/guard';
 import { Prisma, type StatusOrcamento } from '@prisma/client';
 import { prisma } from '@/server/db';
 import { brl } from '@/domain/money';
@@ -16,6 +17,8 @@ export default async function OrcamentosPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await exigirPagina('/orcamentos');
+  const editar = await podeEditar('orcamentos');
   const bruto = await searchParams;
   const q = typeof bruto.q === 'string' ? bruto.q : '';
   const statusBruto = typeof bruto.status === 'string' ? bruto.status : '';
@@ -65,9 +68,11 @@ export default async function OrcamentosPage({
         titulo="Orçamentos"
         descricao="Entrada única do negócio: item pontual vira ordem de serviço e item recorrente vira contrato, com a origem gravada para medir conversão."
         acoes={
-          <Link href="/orcamentos/novo" className="btn btn-primary">
-            Novo orçamento
-          </Link>
+          editar ? (
+            <Link href="/orcamentos/novo" className="btn btn-primary">
+              Novo orçamento
+            </Link>
+          ) : null
         }
       />
 

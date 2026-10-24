@@ -1,9 +1,12 @@
 import { prisma } from '@/server/db';
 import { MODULOS } from '@/lib/modulos';
+import { exigirPagina } from '@/auth/guard';
+import { PAPEIS_LABEL, pode } from '@/auth/perfis';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
+  const usuario = await exigirPagina('/');
   let contagem: Record<string, number | string> | null = null;
   let erro: string | null = null;
 
@@ -47,7 +50,7 @@ export default async function HomePage() {
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {MODULOS.map((m) => (
+        {MODULOS.filter((m) => pode(usuario.papel, m.modulo)).map((m) => (
           <div key={m.href} className={`card ${m.pronto ? 'hover:border-brand hover:bg-blue-50/40' : 'opacity-70'}`}>
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               {m.pronto ? (
@@ -62,6 +65,42 @@ export default async function HomePage() {
             <p className="mt-1 text-xs text-slate-600">{m.desc}</p>
           </div>
         ))}
+      </section>
+
+      <section className="card">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">O que cada perfil altera</h2>
+        <p className="mt-1 text-xs text-slate-600">
+          A regra mora em <code className="rounded bg-slate-100 px-1">src/auth/perfis.ts</code> e vale para página e
+          gravação: esconder o botão é cortesia, a recusa no servidor é a segurança.
+        </p>
+        <div className="mt-3 overflow-x-auto">
+          <table className="grid text-sm">
+            <thead>
+              <tr>
+                <th>Módulo</th>
+                {(Object.keys(PAPEIS_LABEL) as (keyof typeof PAPEIS_LABEL)[]).map((p) => (
+                  <th key={p}>{PAPEIS_LABEL[p]}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {MODULOS.map((m) => (
+                <tr key={m.href}>
+                  <td>{m.nome}</td>
+                  {(Object.keys(PAPEIS_LABEL) as (keyof typeof PAPEIS_LABEL)[]).map((p) => (
+                    <td key={p} className="text-xs text-slate-600">
+                      {pode(p, m.modulo, 'editar')
+                        ? 'altera'
+                        : pode(p, m.modulo)
+                          ? 'somente leitura'
+                          : 'sem acesso'}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );

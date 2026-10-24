@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { exigirPagina } from '@/auth/guard';
 import { type EscopoCobranca } from '@prisma/client';
 import { prisma } from '@/server/db';
 import { brl, D, type Money } from '@/domain/money';
@@ -39,6 +40,7 @@ export default async function MatrizPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await exigirPagina('/financeiro/matriz');
   const filtros = lerFiltros(await searchParams);
   const m = await matrizDoPeriodo(filtros);
 

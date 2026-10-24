@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { exigirPagina } from '@/auth/guard';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/server/db';
 import { Cabecalho, Filtro, Vazio } from '@/ui/pagina';
@@ -10,6 +11,7 @@ export default async function CondominiosPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await exigirPagina('/cadastros/condominios');
   const bruto = await searchParams;
   const q = typeof bruto.q === 'string' ? bruto.q : '';
 

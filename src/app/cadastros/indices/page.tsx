@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { exigirPagina } from '@/auth/guard';
 import { prisma } from '@/server/db';
 import { acumuladoPercentual } from '@/domain/reajuste';
 import { addMonths, toISO } from '@/domain/dates';
@@ -8,6 +9,7 @@ import { Cabecalho, Vazio } from '@/ui/pagina';
 export const metadata = { title: 'Índices de reajuste' };
 
 export default async function IndicesPage() {
+  await exigirPagina('/cadastros/indices');
   const indices = await prisma.indiceReajuste.findMany({
     include: {
       valores: { orderBy: { competencia: 'asc' } },

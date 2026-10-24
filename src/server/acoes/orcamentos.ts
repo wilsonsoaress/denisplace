@@ -6,9 +6,11 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { dataISO, dataOpcional, decimalOpcional, enumDe, obrigatorio, opcional, validar } from '@/lib/form';
 import type { EstadoForm } from '@/ui/form';
-import { D, money, sum, type Money } from '@/domain/money';
+import { D, brl, money, sum, type Money } from '@/domain/money';
 import { addMonths, competencia, hoje, toDate, toISO } from '@/domain/dates';
 import { prisma } from '../db';
+import { autorizar } from '@/auth/guard';
+import { registrarAuditoria } from '../auditoria';
 import { colunaDuplicada } from '../erros';
 
 /**
@@ -49,6 +51,8 @@ function revalidar(id: string) {
 }
 
 export async function criarOrcamento(_prev: EstadoForm, fd: FormData): Promise<EstadoForm> {
+  const acesso = await autorizar('orcamentos');
+  if (!('usuario' in acesso)) return acesso;
   const resultado = validar(schemaOrcamento, fd);
   if (!resultado.ok) return { erros: resultado.erros };
 
@@ -70,6 +74,8 @@ export async function criarOrcamento(_prev: EstadoForm, fd: FormData): Promise<E
 }
 
 export async function salvarOrcamento(id: string, _prev: EstadoForm, fd: FormData): Promise<EstadoForm> {
+  const acesso = await autorizar('orcamentos');
+  if (!('usuario' in acesso)) return acesso;
   const resultado = validar(schemaOrcamento, fd);
   if (!resultado.ok) return { erros: resultado.erros };
 
@@ -100,6 +106,8 @@ const schemaItem = z.object({
 });
 
 export async function adicionarItem(id: string, _prev: EstadoForm, fd: FormData): Promise<EstadoForm> {
+  const acesso = await autorizar('orcamentos');
+  if (!('usuario' in acesso)) return acesso;
   const resultado = validar(schemaItem, fd);
   if (!resultado.ok) return { erros: resultado.erros };
   const d = resultado.dados;
@@ -143,6 +151,8 @@ export async function adicionarItem(id: string, _prev: EstadoForm, fd: FormData)
 }
 
 export async function removerItem(id: string, itemId: string): Promise<void> {
+  const acesso = await autorizar('orcamentos');
+  if (!('usuario' in acesso)) return;
   const item = await prisma.orcamentoItem.findFirst({ where: { id: itemId, orcamentoId: id } });
   if (!item) return;
   const orcamento = await prisma.orcamento.findUnique({ where: { id }, select: { status: true } });
@@ -165,6 +175,8 @@ const TRANSICOES: Record<AcaoStatus, { de: string[]; para: 'ENVIADO' | 'APROVADO
 };
 
 export async function mudarStatus(id: string, acao: AcaoStatus): Promise<void> {
+  const acesso = await autorizar('orcamentos');
+  if (!('usuario' in acesso)) return;
   const transicao = TRANSICOES[acao];
   const orcamento = await prisma.orcamento.findUnique({
     where: { id },
@@ -178,6 +190,12 @@ export async function mudarStatus(id: string, acao: AcaoStatus): Promise<void> {
       status: transicao.para,
       aprovadoEm: transicao.para === 'APROVADO' ? toDate(hoje()) : orcamento.aprovadoEm ?? null,
     },
+  });
+  await registrarAuditoria(acesso.usuario, {
+    acao: `orcamento.${acao}`,
+    entidade: 'orcamento',
+    entidadeId: id,
+    resumo: `${orcamento.status.toLowerCase()} → ${transicao.para.toLowerCase()}`,
   });
   revalidar(id);
 }
@@ -197,6 +215,8 @@ const schemaConversao = z.object({
  * usuario ativa depois de conferir adesoes) e uma OS por item pontual.
  */
 export async function converter(id: string, _prev: EstadoForm, fd: FormData): Promise<EstadoForm> {
+  const acesso = await autorizar('orcamentos');
+  if (!('usuario' in acesso)) return acesso;
   const resultado = validar(schemaConversao, fd);
   if (!resultado.ok) return { erros: resultado.erros };
   const d = resultado.dados;
@@ -301,6 +321,14 @@ export async function converter(id: string, _prev: EstadoForm, fd: FormData): Pr
   revalidatePath('/orcamentos');
   revalidatePath('/contratos');
   revalidatePath(`/orcamentos/${id}`);
+  await registrarAuditoria(acesso.usuario, {
+    acao: 'orcamento.converter',
+    entidade: 'orcamento',
+    entidadeId: id,
+    resumo: `${contratoCriado ? 'contrato criado em rascunho' : 'sem contrato (só itens pontuais)'} · ${
+      saida.ordens.length
+    } OS · ${brl(D(orcamento.valorTotal))}`,
+  });
   const partes = [
     contratoCriado ? 'contrato criado em rascunho' : 'nenhum item recorrente (sem contrato)',
     `${saida.ordens.length} OS`,

@@ -15,10 +15,13 @@ import {
   validar,
 } from '@/lib/form';
 import type { EstadoForm } from '@/ui/form';
-import { D, brlPct, money } from '@/domain/money';
+import { D, brl, brlPct, money } from '@/domain/money';
 import { addDays, addMonths, competencia, toDate, type Competencia } from '@/domain/dates';
 import { acumuladoPercentual, janelaDeReajuste, novoPreco, proximoReajuste } from '@/domain/reajuste';
 import { prisma } from '../db';
+import { autorizar } from '@/auth/guard';
+import { registrarAuditoria } from '../auditoria';
+import { STATUS_CONTRATO } from '@/lib/rotulos';
 import { colunaDuplicada } from '../erros';
 import { gerarCobranca } from '../cobranca/gerar';
 
@@ -73,6 +76,8 @@ function rotulosDeErro(erro: unknown): EstadoForm {
 }
 
 export async function criarContrato(_prev: EstadoForm, fd: FormData): Promise<EstadoForm> {
+  const acesso = await autorizar('contratos');
+  if (!('usuario' in acesso)) return acesso;
   const resultado = validar(schemaContrato, fd);
   if (!resultado.ok) return { erros: resultado.erros };
   const periodo = validarPeriodo(resultado.dados);
@@ -98,6 +103,8 @@ export async function salvarContrato(
   _prev: EstadoForm,
   fd: FormData,
 ): Promise<EstadoForm> {
+  const acesso = await autorizar('contratos');
+  if (!('usuario' in acesso)) return acesso;
   const resultado = validar(schemaContrato, fd);
   if (!resultado.ok) return { erros: resultado.erros };
   const periodo = validarPeriodo(resultado.dados);
@@ -118,6 +125,8 @@ const TRANSICOES: Record<AcaoStatus, { de: StatusContrato[]; para: StatusContrat
 };
 
 export async function mudarStatus(id: string, acao: AcaoStatus) {
+  const acesso = await autorizar('contratos');
+  if (!('usuario' in acesso)) return;
   const transicao = TRANSICOES[acao];
   const contrato = await prisma.contrato.findUnique({
     where: { id },
@@ -129,6 +138,12 @@ export async function mudarStatus(id: string, acao: AcaoStatus) {
   if (transicao.para === 'VIGENTE' && contrato.itens.length === 0) return;
 
   await prisma.contrato.update({ where: { id }, data: { status: transicao.para } });
+  await registrarAuditoria(acesso.usuario, {
+    acao: `contrato.${acao}`,
+    entidade: 'contrato',
+    entidadeId: id,
+    resumo: `${STATUS_CONTRATO[contrato.status].toLowerCase()} → ${STATUS_CONTRATO[transicao.para].toLowerCase()}`,
+  });
   revalidatePath('/contratos');
   revalidatePath(`/contratos/${id}`);
 }
@@ -139,6 +154,8 @@ const schemaDistrato = z.object({
 });
 
 export async function distratar(id: string, _prev: EstadoForm, fd: FormData): Promise<EstadoForm> {
+  const acesso = await autorizar('contratos');
+  if (!('usuario' in acesso)) return acesso;
   const resultado = validar(schemaDistrato, fd);
   if (!resultado.ok) return { erros: resultado.erros };
 
@@ -172,9 +189,16 @@ export async function distratar(id: string, _prev: EstadoForm, fd: FormData): Pr
       competencia(resultado.dados.data),
       `Distrato: ${resultado.dados.motivo}`,
       { detalhe: `Vigência encerrada em ${resultado.dados.data}` },
+      acesso.usuario.id,
     );
   });
 
+  await registrarAuditoria(acesso.usuario, {
+    acao: 'contrato.distratar',
+    entidade: 'contrato',
+    entidadeId: id,
+    resumo: `distrato em ${resultado.dados.data}: ${resultado.dados.motivo}`,
+  });
   revalidatePath('/contratos');
   revalidatePath(`/contratos/${id}`);
   redirect(`/contratos/${id}?salvo=1`);
@@ -187,6 +211,7 @@ async function registrarAditivo(
   comp: Competencia,
   descricao: string,
   valores?: { anterior?: string; novo?: string; detalhe?: string },
+  usuarioId?: string,
 ) {
   const ultimo = await tx.aditivoContratual.aggregate({ where: { contratoId }, _max: { numero: true } });
   return tx.aditivoContratual.create({
@@ -199,6 +224,8 @@ async function registrarAditivo(
       valorAnterior: valores?.anterior ? new Prisma.Decimal(valores.anterior) : null,
       valorNovo: valores?.novo ? new Prisma.Decimal(valores.novo) : null,
       detalhe: valores?.detalhe ?? null,
+      // Quem assinou o aditivo: o documento prova a condição, o usuário prova a decisão.
+      usuarioId: usuarioId ?? null,
     },
   });
 }
@@ -218,6 +245,8 @@ export async function adicionarItem(
   _prev: EstadoForm,
   fd: FormData,
 ): Promise<EstadoForm> {
+  const acesso = await autorizar('contratos');
+  if (!('usuario' in acesso)) return acesso;
   const resultado = validar(schemaItem, fd);
   if (!resultado.ok) return { erros: resultado.erros };
   const d = resultado.dados;
@@ -264,6 +293,7 @@ export async function adicionarItem(
       vigencia,
       `Inclusão de ${quantidade.toString()} × ${catalogo.nome} a ${preco.toString()}`,
       { novo: preco.mul(quantidade).toString() },
+      acesso.usuario.id,
     );
   });
 
@@ -277,6 +307,8 @@ export async function encerrarItem(
   _prev: EstadoForm,
   fd: FormData,
 ): Promise<EstadoForm> {
+  const acesso = await autorizar('contratos');
+  if (!('usuario' in acesso)) return acesso;
   const schema = z.object({ fim: dataISO('Data de encerramento') });
   const resultado = validar(schema, fd);
   if (!resultado.ok) return { erros: { fim: 'Informe a data em que o item deixa de ser cobrado.' } };
@@ -300,6 +332,7 @@ export async function encerrarItem(
       competencia(resultado.dados.fim),
       `Encerramento de ${item.descricao} a partir de ${resultado.dados.fim}`,
       { anterior: item.precoAtual.toString() },
+      acesso.usuario.id,
     );
   });
 
@@ -322,6 +355,8 @@ export async function aplicarReajuste(
   _prev: EstadoForm,
   fd: FormData,
 ): Promise<EstadoForm> {
+  const acesso = await autorizar('contratos');
+  if (!('usuario' in acesso)) return acesso;
   const resultado = validar(schemaReajuste, fd);
   if (!resultado.ok) return { erros: resultado.erros };
 
@@ -384,13 +419,23 @@ export async function aplicarReajuste(
         proximoReajusteEm: toDate(addMonths(comp, meses)),
       },
     });
-    await registrarAditivo(tx, contratoId, 'REAJUSTE', comp, `Reajuste de ${item.descricao}`, {
-      anterior: anterior.toString(),
-      novo: novo.toString(),
-      detalhe,
-    });
+    await registrarAditivo(
+      tx,
+      contratoId,
+      'REAJUSTE',
+      comp,
+      `Reajuste de ${item.descricao}`,
+      { anterior: anterior.toString(), novo: novo.toString(), detalhe },
+      acesso.usuario.id,
+    );
   });
 
+  await registrarAuditoria(acesso.usuario, {
+    acao: 'item.reajuste',
+    entidade: 'contrato_item',
+    entidadeId: itemId,
+    resumo: `${item.descricao}: ${brl(anterior)} → ${brl(novo)} desde ${comp.slice(0, 7)} · ${detalhe}`,
+  });
   revalidatePath('/contratos');
   revalidatePath(`/contratos/${contratoId}`);
   return { mensagem: `Reajuste aplicado: ${item.descricao} passou a ${novo.toString()} a partir de ${comp.slice(0, 7)}.` };
@@ -411,6 +456,8 @@ export async function aderirUnidade(
   _prev: EstadoForm,
   fd: FormData,
 ): Promise<EstadoForm> {
+  const acesso = await autorizar('contratos');
+  if (!('usuario' in acesso)) return acesso;
   const resultado = validar(schemaAderencia, fd);
   if (!resultado.ok) return { erros: resultado.erros };
   const d = resultado.dados;
@@ -469,6 +516,8 @@ export async function encerrarAderencia(
   _prev: EstadoForm,
   fd: FormData,
 ): Promise<EstadoForm> {
+  const acesso = await autorizar('contratos');
+  if (!('usuario' in acesso)) return acesso;
   const resultado = validar(schemaEncerrarAderencia, fd);
   if (!resultado.ok) return { erros: { ate: 'Informe a data de saída.' } };
 
@@ -496,12 +545,22 @@ export async function gerarCobrancaDoContrato(
   _prev: EstadoForm,
   fd: FormData,
 ): Promise<EstadoForm> {
+  const acesso = await autorizar('contratos');
+  if (!('usuario' in acesso)) return acesso;
   const schema = z.object({ competencia: dataISO('Competência') });
   const resultado = validar(schema, fd);
   if (!resultado.ok) return { erros: resultado.erros };
 
   const comp = competencia(resultado.dados.competencia) as Competencia;
   const saida = await gerarCobranca(comp, { contratoIds: [contratoId] });
+  await registrarAuditoria(acesso.usuario, {
+    acao: 'cobranca.gerar',
+    entidade: 'contrato',
+    entidadeId: contratoId,
+    resumo: `competência ${comp.slice(0, 7)}: ${saida.criadas} fatura(s), ${saida.puladas.length} pulada(s)${
+      saida.criadas === 0 ? ` (${saida.puladas[0]?.motivo ?? 'nada a cobrar'})` : ''
+    }`,
+  });
   revalidatePath(`/contratos/${contratoId}`);
   revalidatePath('/financeiro/contas-a-receber');
   revalidatePath('/financeiro/dashboard');

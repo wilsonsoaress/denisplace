@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { exigirPagina } from '@/auth/guard';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/server/db';
 import { brl, brlPct, D } from '@/domain/money';
@@ -12,6 +13,7 @@ export default async function CatalogoPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await exigirPagina('/cadastros/catalogo');
   const bruto = await searchParams;
   const q = typeof bruto.q === 'string' ? bruto.q : '';
   const tipo = typeof bruto.tipo === 'string' ? bruto.tipo : '';

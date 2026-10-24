@@ -1,4 +1,5 @@
 import { prisma } from '@/server/db';
+import { exigirPagina } from '@/auth/guard';
 import { salvarCatalogoItem } from '@/server/acoes/catalogo';
 import { Cabecalho } from '@/ui/pagina';
 import { FormCatalogoItem } from '../form';
@@ -6,6 +7,7 @@ import { FormCatalogoItem } from '../form';
 export const metadata = { title: 'Novo item de catálogo' };
 
 export default async function NovoCatalogoPage() {
+  await exigirPagina('/cadastros/catalogo/novo');
   const indices = await prisma.indiceReajuste.findMany({ orderBy: { sigla: 'asc' } });
   return (
     <>

@@ -1,10 +1,12 @@
 import { Cabecalho } from '@/ui/pagina';
+import { exigirPagina } from '@/auth/guard';
 import { salvarCliente } from '@/server/acoes/clientes';
 import { FormCliente } from '../form';
 
 export const metadata = { title: 'Novo cliente' };
 
-export default function NovoClientePage() {
+export default async function NovoClientePage() {
+  await exigirPagina('/cadastros/clientes/novo');
   return (
     <>
       <Cabecalho

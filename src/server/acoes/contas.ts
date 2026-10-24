@@ -11,6 +11,8 @@ import { devidoNaData, estadoQuitacao, type PagamentoResumo } from '@/domain/cob
 import { FORMA_PAGAMENTO, TIPO_EMISSAO } from '@/lib/rotulos';
 import { prisma } from '../db';
 import { colunaDuplicada } from '../erros';
+import { registrarAuditoria } from '../auditoria';
+import { autorizar } from '@/auth/guard';
 
 /**
  * Toda mutacao de titulo passa por aqui. A tela nao decide se o titulo esta pago:
@@ -90,6 +92,9 @@ export async function registrarPagamento(
   if (!resultado.ok) return { erros: resultado.erros };
   const d = resultado.dados;
 
+  const acesso = await autorizar('financeiro');
+  if (!('usuario' in acesso)) return acesso;
+
   const t = await recarregar(tituloId);
   if (!t) return { erros: { _: 'Título não encontrado.' } };
   if (t.pago) return { erros: { data: 'Este título já está quitado. Use o estorno do pagamento para corrigir.' } };
@@ -128,6 +133,7 @@ export async function registrarPagamento(
         forma: d.forma,
         comprovanteUrl: d.comprovanteUrl || null,
         observacao: d.observacao || null,
+        usuarioId: acesso.usuario.id,
       },
     });
     await reaplicarQuitacao(tx, tituloId);
@@ -135,6 +141,14 @@ export async function registrarPagamento(
 
   const depois = await recarregar(tituloId);
   const final = depois ? estadoDo(depois) : null;
+  await registrarAuditoria(acesso.usuario, {
+    acao: 'titulo.pagamento',
+    entidade: 'titulo',
+    entidadeId: tituloId,
+    resumo: `${brl(valor)} em ${d.data} (${FORMA_PAGAMENTO[d.forma]}) · ${
+      final?.estado.pago ? 'quitado' : `saldo ${brl(final ? final.estado.saldo : D(0))}`
+    }`,
+  });
   revalidar(tituloId);
 
   if (!final) return { mensagem: `Pagamento de ${brl(valor)} registrado em ${d.data}.` };
@@ -166,6 +180,9 @@ export async function estornarPagamento(
   const resultado = validar(schemaEstorno, fd);
   if (!resultado.ok) return { erros: resultado.erros };
 
+  const acesso = await autorizar('financeiro');
+  if (!('usuario' in acesso)) return acesso;
+
   const pagamento = await prisma.pagamento.findFirst({
     where: { id: pagamentoId, tituloId },
   });
@@ -182,6 +199,12 @@ export async function estornarPagamento(
 
   const depois = await recarregar(tituloId);
   const final = depois ? estadoDo(depois) : null;
+  await registrarAuditoria(acesso.usuario, {
+    acao: 'titulo.estorno',
+    entidade: 'titulo',
+    entidadeId: tituloId,
+    resumo: `estorno de ${brl(pagamento.valor)} (${toISO(pagamento.data)}): ${resultado.dados.motivo}`,
+  });
   revalidar(tituloId);
 
   if (!final) return { mensagem: `Pagamento de ${brl(pagamento.valor)} estornado.` };
@@ -206,6 +229,9 @@ export async function marcarIsento(
   const resultado = validar(schemaIsencao, fd);
   if (!resultado.ok) return { erros: resultado.erros };
 
+  const acesso = await autorizar('financeiro');
+  if (!('usuario' in acesso)) return acesso;
+
   const t = await recarregar(tituloId);
   if (!t) return { erros: { motivo: 'Título não encontrado.' } };
   if (t.pago) return { erros: { motivo: 'Título quitado não pode virar isento. Estorne o pagamento primeiro.' } };
@@ -214,12 +240,26 @@ export async function marcarIsento(
     where: { id: tituloId },
     data: { isento: true, isentoMotivo: resultado.dados.motivo },
   });
+  await registrarAuditoria(acesso.usuario, {
+    acao: 'titulo.isencao',
+    entidade: 'titulo',
+    entidadeId: tituloId,
+    resumo: `isento: ${resultado.dados.motivo}`,
+  });
   revalidar(tituloId);
   return { mensagem: 'Título marcado como isento: ele sai do cálculo de adimplência e da receita recorrente.' };
 }
 
 export async function retirarIsencao(tituloId: string) {
+  const acesso = await autorizar('financeiro');
+  if (!('usuario' in acesso)) return;
   await prisma.titulo.update({ where: { id: tituloId }, data: { isento: false, isentoMotivo: null } });
+  await registrarAuditoria(acesso.usuario, {
+    acao: 'titulo.isencao.retirada',
+    entidade: 'titulo',
+    entidadeId: tituloId,
+    resumo: 'isenção retirada: o título volta a contar na adimplência',
+  });
   revalidar(tituloId);
 }
 
@@ -247,6 +287,9 @@ export async function marcarEmitido(_prev: EstadoForm, fd: FormData): Promise<Es
   const resultado = validar(schemaEmissao, fd);
   if (!resultado.ok) return { erros: resultado.erros };
   const { tipo, numero } = resultado.dados;
+
+  const acesso = await autorizar('financeiro');
+  if (!('usuario' in acesso)) return acesso;
 
   const ids = idsSelecionados(fd);
   if (ids.length === 0) {
@@ -285,6 +328,7 @@ export async function marcarEmitido(_prev: EstadoForm, fd: FormData): Promise<Es
           descricao: `${TIPO_EMISSAO[tipo]} de ${titulos.length} título(s) · competência ${comp.slice(0, 7)}`,
           quantidade: titulos.length,
           valorTotal,
+          usuarioId: acesso.usuario.id,
         },
       });
       await tx.emissaoLoteTitulo.createMany({ data: titulos.map((t) => ({ loteId: lote.id, tituloId: t.id })) });
@@ -304,6 +348,12 @@ export async function marcarEmitido(_prev: EstadoForm, fd: FormData): Promise<Es
     throw erro;
   }
 
+  await registrarAuditoria(acesso.usuario, {
+    acao: 'titulo.emissao',
+    entidade: 'titulo',
+    entidadeId: titulos[0]?.id ?? '',
+    resumo: `${TIPO_EMISSAO[tipo]} em lote de ${titulos.length} título(s) · ${brl(valorTotal)} · competência ${comp.slice(0, 7)}`,
+  });
   revalidatePath('/financeiro/contas-a-receber');
   revalidatePath('/financeiro/dashboard');
   return {
@@ -316,12 +366,20 @@ export async function marcarEmitido(_prev: EstadoForm, fd: FormData): Promise<Es
  * apaga o lote anterior, que continua sendo a prova da emissão equivocada.
  */
 export async function desmarcarEmitido(tituloId: string, campo: 'boleto' | 'nf') {
+  const acesso = await autorizar('financeiro');
+  if (!('usuario' in acesso)) return;
   await prisma.titulo.update({
     where: { id: tituloId },
     data:
       campo === 'boleto'
         ? { boletoGerado: false, boletoEmitidoEm: null, nossoNumero: null }
         : { nfEmitida: false, nfEmissaoEm: null, nfNumero: null },
+  });
+  await registrarAuditoria(acesso.usuario, {
+    acao: 'titulo.emissao.estorno',
+    entidade: 'titulo',
+    entidadeId: tituloId,
+    resumo: `emissão de ${campo === 'boleto' ? 'boleto' : 'NF'} desmarcada`,
   });
   revalidar(tituloId);
 }

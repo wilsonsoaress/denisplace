@@ -32,9 +32,12 @@ model User {
   id           String   @id @default(cuid())
   nome         String
   email        String   @unique
+  /// Hash bcrypt; a senha em si nunca vai para o banco nem para o log.
   passwordHash String   @map("password_hash")
   papel        Papel    @default(FINANCEIRO)
   ativo        Boolean  @default(true)
+  /// Ultima vez que o login aconteceu de fato: serve para o dono saber se a conta esta em uso.
+  ultimoAcessoEm DateTime? @map("last_access_at") @db.Timestamptz(3)
   criadoEm     DateTime @default(now()) @map("created_at")
   atualizadoEm DateTime @updatedAt @map("updated_at")
 
