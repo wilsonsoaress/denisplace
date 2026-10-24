@@ -65,3 +65,30 @@ export function FormCliente({
     </Formulario>
   );
 }
+
+/**
+ * Atendimento de pedido de titular. A confirmação digitada (SIM) existe porque a
+ * anonimização é irreversível: o nome volta como apelido e o documento se perde.
+ */
+export function FormLgpd({ acao }: { acao: (prev: EstadoForm, fd: FormData) => Promise<EstadoForm> }) {
+  return (
+    <Formulario acao={acao} textoSubmit="Anonimizar dados">
+      <Campo
+        nome="motivo"
+        rotulo="Motivo do pedido"
+        obrigatorio
+        dica="Pedido do titular, fim da relação de consumo ou prazo de guarda vencido. Fica na trilha de auditoria."
+      >
+        <Texto nome="motivo" placeholder="Titular pediu a remoção dos dados dele" />
+      </Campo>
+      <Campo
+        nome="confirmar"
+        rotulo="Digite SIM para confirmar"
+        obrigatorio
+        dica="Não há volta: o nome vira apelido e documento, contato e endereço são apagados."
+      >
+        <Texto nome="confirmar" placeholder="SIM" />
+      </Campo>
+    </Formulario>
+  );
+}

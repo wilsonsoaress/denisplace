@@ -22,6 +22,8 @@
     "prisma:studio": "prisma studio",
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset --force",
+    "db:backup": "bash scripts/backup.sh",
+    "db:restore": "bash scripts/restore.sh",
     "cobranca:gerar": "tsx src/server/scripts/gerar-cobranca.ts"
   },
   "prisma": {

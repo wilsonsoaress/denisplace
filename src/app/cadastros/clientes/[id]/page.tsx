@@ -1,11 +1,11 @@
 import Link from 'next/link';
-import { exigirPagina } from '@/auth/guard';
+import { exigirPagina, soAdmin } from '@/auth/guard';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/server/db';
-import { salvarCliente } from '@/server/acoes/clientes';
+import { anonimizarCliente, salvarCliente } from '@/server/acoes/clientes';
 import { Cabecalho } from '@/ui/pagina';
 import { STATUS_CONTRATO } from '@/lib/rotulos';
-import { FormCliente } from '../form';
+import { FormCliente, FormLgpd } from '../form';
 
 export const metadata = { title: 'Cliente' };
 
@@ -17,6 +17,7 @@ export default async function ClientePage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await exigirPagina('/cadastros/clientes/[id]');
+  const admin = 'usuario' in (await soAdmin());
   const { id } = await params;
   const salvo = (await searchParams).salvo !== undefined;
 
@@ -93,6 +94,18 @@ export default async function ClientePage({
               Escopo de cobrança de cada contrato define se o boleto é único do condomínio ou por unidade.
             </p>
           </div>
+
+          {admin && !cliente.nome.startsWith('Morador anonimizado') ? (
+            <div className="card">
+              <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Pedido LGPD</h2>
+              <p className="mb-3 text-xs text-slate-500">
+                Anonimiza os dados pessoais deste cliente: nome vira apelido e documento, contato e endereço somem. Os
+                títulos já emitidos guardam o nome do devedor na emissão, então a matriz e o histórico não mudam. Só
+                funciona com contrato, adesão e titularidade de unidade encerrados.
+              </p>
+              <FormLgpd acao={anonimizarCliente.bind(null, cliente.id)} />
+            </div>
+          ) : null}
         </div>
       </div>
     </>

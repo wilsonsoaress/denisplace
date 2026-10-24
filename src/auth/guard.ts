@@ -59,3 +59,13 @@ export async function podeEditar(modulo: Modulo): Promise<boolean> {
   const usuario = await sessaoAtual();
   return !!usuario && pode(usuario.papel, modulo, 'editar');
 }
+
+/** Pedido de titular (LGPD) é caso de administrador: o mais alto perfil da matriz. */
+export async function soAdmin(): Promise<{ usuario: UsuarioSessao } | { erros: { _: string } }> {
+  const acesso = await autorizar('cadastros');
+  if (!('usuario' in acesso)) return acesso;
+  if (acesso.usuario.papel !== 'ADMIN') {
+    return { erros: { _: 'Só o administrador atende um pedido de anonimização.' } };
+  }
+  return acesso;
+}
