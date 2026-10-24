@@ -57,7 +57,8 @@ services:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
     ports:
-      - "127.0.0.1:3100:3000"
+      # 3101: o dev server do host usa 3100, e assim os dois sobem juntos.
+      - "127.0.0.1:3101:3000"
     command: ["node", "server.js"]
 
   worker:
