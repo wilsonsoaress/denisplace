@@ -1,0 +1,655 @@
+// Sistema de gestao de contratos e cobranca - F1
+//
+// Regras gravadas no schema (nao apenas na aplicacao):
+//  1. Dinheiro NUNCA e float: Decimal @db.Decimal(12,2).
+//  2. Competencia e data pura (primeiro dia do mes) em @db.Date, para o job mensal
+//     nao ser afetado por fuso/horario de verao.
+//  3. Fatura tem unique(contratoId, competencia): reprocessar um mes nao duplica.
+//  4. Sem integracao bancaria: boleto/NF/pago sao flags registrados pelo usuario.
+//  5. Preco de item de contrato e versionado por aditivo, nunca sobrescrito sem rastro.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Transversal
+// ---------------------------------------------------------------------------
+
+enum Papel {
+  ADMIN
+  COMERCIAL
+  FINANCEIRO
+  TECNICO
+}
+
+model User {
+  id           String   @id @default(cuid())
+  nome         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  papel        Papel    @default(FINANCEIRO)
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now()) @map("created_at")
+  atualizadoEm DateTime @updatedAt @map("updated_at")
+
+  auditoria  AuditLog[]
+  aditivos   AditivoContratual[]
+  pagamentos Pagamento[]
+  lotes      EmissaoLote[]
+
+  @@map("users")
+}
+
+model AuditLog {
+  id        BigInt   @id @default(autoincrement())
+  usuarioId String?
+  entidade  String
+  entidadeId String
+  acao      String
+  antes     Json?
+  depois    Json?
+  motivo    String?
+  criadoEm  DateTime @default(now()) @map("created_at")
+
+  usuario User? @relation(fields: [usuarioId], references: [id])
+
+  @@index([entidade, entidadeId])
+  @@index([criadoEm])
+  @@map("audit_log")
+}
+
+// ---------------------------------------------------------------------------
+// Cadastros base
+// ---------------------------------------------------------------------------
+
+enum TipoPessoa {
+  PF
+  PJ
+}
+
+model Cliente {
+  id           String     @id @default(cuid())
+  tipo         TipoPessoa
+  nome         String
+  documento    String?    @unique
+  email        String?
+  telefone     String?
+  endereco     String?
+  cidade       String?
+  uf           String?
+  cep          String?
+  /// Condominio pode ser cliente e tambem pode ter clientes vinculados a ele.
+  ehCondominio Boolean    @default(false) @map("is_condominium")
+  observacoes  String?
+  ativo        Boolean    @default(true)
+  criadoEm     DateTime   @default(now()) @map("created_at")
+  atualizadoEm DateTime   @updatedAt @map("updated_at")
+
+  contratos        Contrato[]
+  condominios      Condominio[]
+  aderencias       ContratoUnidade[]
+  unidadesTitular  Unidade[]
+  orcamentos       Orcamento[]        @relation("OrcamentoCliente")
+
+  @@index([nome])
+  @@map("clientes")
+}
+
+model Condominio {
+  id             String   @id @default(cuid())
+  nome           String
+  cnpj           String?  @unique
+  endereco       String?
+  cidade         String?
+  uf             String?
+  cep            String?
+  sindicoNome    String?
+  sindicoEmail   String?
+  sindicoTelefone String?
+  administradora String?
+  /// Quando o proprio condominio e o cliente que assina e recebe o boleto unico.
+  clienteId      String?
+  criadoEm       DateTime @default(now()) @map("created_at")
+  atualizadoEm   DateTime @updatedAt @map("updated_at")
+
+  cliente    Cliente?   @relation(fields: [clienteId], references: [id])
+  unidades   Unidade[]
+  contratos  Contrato[]
+  equipamentos Equipamento[]
+  orcamentos Orcamento[]
+  ordensServico OrdemServico[]
+
+  @@unique([nome, cidade])
+  @@map("condominios")
+}
+
+model Unidade {
+  id          String   @id @default(cuid())
+  condominioId String
+  /// Rotulo legavel usado no boleto e na matriz: "Casa 12 - bloco A", "Apto 201 - bloco B"
+  codigo      String
+  bloco       String?
+  numero      String?
+  titularId   String?
+  ativa       Boolean  @default(true)
+  criadoEm    DateTime @default(now()) @map("created_at")
+  atualizadoEm DateTime @updatedAt @map("updated_at")
+
+  condominio   Condominio @relation(fields: [condominioId], references: [id])
+  titular      Cliente?   @relation(fields: [titularId], references: [id])
+  aderencias   ContratoUnidade[]
+  equipamentos Equipamento[]
+  ordensServico OrdemServico[]
+
+  @@unique([condominioId, codigo])
+  @@map("unidades")
+}
+
+enum TipoCatalogo {
+  SERVICO
+  EQUIPAMENTO
+}
+
+enum UnidadeCobranca {
+  MENSALIDADE
+  PONTO
+  HORA
+  PECA
+  DIARIA
+}
+
+model CatalogoItem {
+  id            String          @id @default(cuid())
+  tipo          TipoCatalogo
+  nome          String
+  descricao     String?
+  /// Preco publico de referencia. O preco cobrado vive no ContratoItem.
+  precoPublico  Decimal         @db.Decimal(12, 2) @map("list_price")
+  custoReferencia Decimal       @db.Decimal(12, 2) @map("reference_cost")
+  unidadeCobranca UnidadeCobranca @default(MENSALIDADE)
+  indiceReajusteId String?
+  /// Servico/equipamento que costumam ser alugados juntos (combo do mockup).
+  ativo         Boolean         @default(true)
+  criadoEm      DateTime        @default(now()) @map("created_at")
+  atualizadoEm  DateTime        @updatedAt @map("updated_at")
+
+  indiceReajuste IndiceReajuste? @relation(fields: [indiceReajusteId], references: [id])
+  itens          ContratoItem[]
+  orcamentoItens OrcamentoItem[]
+
+  @@unique([nome])
+  @@map("catalogo_itens")
+}
+
+model IndiceReajuste {
+  id    String @id @default(cuid())
+  sigla String @unique
+  nome  String
+
+  valores      IndiceValor[]
+  catalogoItens CatalogoItem[]
+  contratoItens ContratoItem[]
+
+  @@map("indices_reajuste")
+}
+
+model IndiceValor {
+  id           String   @id @default(cuid())
+  indiceId     String
+  /// Primeiro dia do mes de referencia do indice.
+  competencia  DateTime @db.Date
+  /// Variacao mensal em % (ex: 0.48). Acumulado e calculado pela aplicacao.
+  variacaoMensal Decimal @db.Decimal(9, 6) @map("monthly_variation")
+
+  indice IndiceReajuste @relation(fields: [indiceId], references: [id])
+
+  @@unique([indiceId, competencia])
+  @@map("indices_valores")
+}
+
+enum StatusEquipamento {
+  ESTOQUE
+  INSTALADO
+  MANUTENCAO
+  BAIXADO
+}
+
+model Equipamento {
+  id           String @id @default(cuid())
+  modelo       String
+  /// Serie e a entidade que permite cobranca por equipamento e controle de garantia.
+  numeroSerie  String @unique @map("serial")
+  status       StatusEquipamento @default(ESTOQUE)
+  condominioId String?
+  unidadeId    String?
+  garantiaAte  DateTime? @db.Date
+  observacoes  String?
+  criadoEm     DateTime @default(now()) @map("created_at")
+  atualizadoEm DateTime @updatedAt @map("updated_at")
+
+  condominio   Condominio? @relation(fields: [condominioId], references: [id])
+  unidade      Unidade?    @relation(fields: [unidadeId], references: [id])
+  contratoItens ContratoItem[]
+
+  @@index([modelo])
+  @@map("equipamentos")
+}
+
+// ---------------------------------------------------------------------------
+// Contratos
+// ---------------------------------------------------------------------------
+
+enum EscopoCobranca {
+  /// Um unico boleto para o condominio inteiro.
+  CONDOMINIO
+  /// Um boleto por morador/unidade.
+  UNIDADE
+}
+
+enum StatusContrato {
+  RASCUNHO
+  VIGENTE
+  SUSPENSO
+  DISTRATADO
+  VENCIDO
+}
+
+enum PeriodicidadeReajuste {
+  ANUAL
+  SEMESTRAL
+  NENHUM
+}
+
+enum TipoAditivo {
+  REAJUSTE
+  ACRESCIMO
+  REMOCAO
+  ALTERACAO
+  SUSPENSAO
+  RETOMADA
+  DISTRACTO
+}
+
+model Contrato {
+  id           String @id @default(cuid())
+  numero       Int    @unique
+  clienteId    String
+  condominioId String?
+  /// Contrato de morador pende do contrato-"mae" do condominio e herda condicoes.
+  parentContractId String?
+  escopo       EscopoCobranca
+  inicio       DateTime @db.Date
+  fim          DateTime? @db.Date
+  status       StatusContrato @default(RASCUNHO)
+  vencimentoDia Int    @default(5) @map("due_day")
+  /// Percentual de desconto sobre o bruto da fatura (convênio, campanha).
+  descontoPct  Decimal  @db.Decimal(6, 3) @default(0) @map("discount_pct")
+  observacoes  String?
+  distratoMotivo String?
+  distratoEm   DateTime? @db.Date
+  criadoEm     DateTime @default(now()) @map("created_at")
+  atualizadoEm DateTime @updatedAt @map("updated_at")
+
+  cliente      Cliente   @relation(fields: [clienteId], references: [id])
+  condominio   Condominio? @relation(fields: [condominioId], references: [id])
+  parent       Contrato? @relation("ContratoMaeFilhos", fields: [parentContractId], references: [id])
+  children     Contrato[] @relation("ContratoMaeFilhos")
+  itens        ContratoItem[]
+  aditivos     AditivoContratual[]
+  aderencias   ContratoUnidade[]
+  faturas      Fatura[]
+  titulos      Titulo[]
+  orcamento    Orcamento? @relation("OrcamentoContrato")
+  ordensServico OrdemServico[]
+
+  @@index([status])
+  @@index([condominioId])
+  @@index([parentContractId])
+  @@map("contratos")
+}
+
+model ContratoItem {
+  id             String @id @default(cuid())
+  contratoId     String
+  catalogoItemId String
+  /// Snapshot do nome no momento da contratacao: o catalogo pode mudar depois.
+  descricao      String
+  quantidade     Decimal  @db.Decimal(10, 2)
+  /// Preco original da contratacao, nunca alterado.
+  precoInicial   Decimal  @db.Decimal(12, 2)
+  /// Preco vigente, movido apenas por aditivo de reajuste.
+  precoAtual     Decimal  @db.Decimal(12, 2)
+  /// Competencia a partir da qual precoAtual vale.
+  vigenciaDesde  DateTime @db.Date @map("price_valid_from")
+  inicio         DateTime @db.Date
+  fim            DateTime? @db.Date
+  indiceReajusteId String?
+  periodicidade  PeriodicidadeReajuste @default(ANUAL)
+  proximoReajusteEm DateTime? @db.Date
+  ativo          Boolean  @default(true)
+  criadoEm       DateTime @default(now()) @map("created_at")
+  atualizadoEm   DateTime @updatedAt @map("updated_at")
+
+  contrato      Contrato  @relation(fields: [contratoId], references: [id])
+  catalogoItem  CatalogoItem @relation(fields: [catalogoItemId], references: [id])
+  indiceReajuste IndiceReajuste? @relation(fields: [indiceReajusteId], references: [id])
+  equipamentos  Equipamento[]
+  faturas       FaturaItem[]
+
+  @@index([contratoId])
+  @@index([proximoReajusteEm])
+  @@map("contrato_itens")
+}
+
+model AditivoContratual {
+  id         String @id @default(cuid())
+  contratoId String
+  numero     Int
+  tipo       TipoAditivo
+  /// Competencia a partir da qual o aditivo passa a valer.
+  competencia DateTime @db.Date
+  descricao  String
+  valorAnterior Decimal? @db.Decimal(12, 2)
+  valorNovo     Decimal? @db.Decimal(12, 2)
+  /// Texto livre do indice usado no reajuste, ex: "IPCA acumulado 12m = 4,31%".
+  detalhe    String?
+  usuarioId  String?
+  criadoEm   DateTime @default(now()) @map("created_at")
+
+  contrato Contrato @relation(fields: [contratoId], references: [id])
+  usuario  User?    @relation(fields: [usuarioId], references: [id])
+
+  @@unique([contratoId, numero])
+  @@map("contrato_aditivos")
+}
+
+/// Aderencia de unidade/morador ao contrato. Trocar morador nao reescreve o contrato.
+model ContratoUnidade {
+  id         String @id @default(cuid())
+  contratoId String
+  unidadeId  String
+  moradorId  String?
+  desde      DateTime @db.Date
+  ate        DateTime? @db.Date
+  situacao   String @default("ATIVA")
+
+  contrato Contrato  @relation(fields: [contratoId], references: [id])
+  unidade  Unidade   @relation(fields: [unidadeId], references: [id])
+  morador  Cliente?  @relation(fields: [moradorId], references: [id])
+
+  @@unique([contratoId, unidadeId, desde])
+  @@index([unidadeId])
+  @@map("contrato_unidades")
+}
+
+// ---------------------------------------------------------------------------
+// Cobranca: Fatura (competencia) -> Titulo (boleto) -> Pagamento
+// ---------------------------------------------------------------------------
+
+enum StatusFatura {
+  ABERTA
+  CANCELADA
+}
+
+model Fatura {
+  id          String @id @default(cuid())
+  contratoId  String
+  competencia DateTime @db.Date
+  status      StatusFatura @default(ABERTA)
+  valorBruto  Decimal @db.Decimal(12, 2)
+  desconto    Decimal @db.Decimal(12, 2) @default(0)
+  acrescimos  Decimal @db.Decimal(12, 2) @default(0)
+  valorLiquido Decimal @db.Decimal(12, 2)
+  geradaEm    DateTime @default(now()) @map("generated_at")
+  motivo      String? @map("generation_reason")
+
+  contrato Contrato @relation(fields: [contratoId], references: [id])
+  itens    FaturaItem[]
+  titulos  Titulo[]
+
+  /// Idempotencia do job mensal: um contrato nao tem duas faturas na mesma competencia.
+  @@unique([contratoId, competencia])
+  @@index([competencia])
+  @@map("faturas")
+}
+
+/// Linha da fatura: quanto de cada item do contrato entrou naquela competencia.
+model FaturaItem {
+  id              String @id @default(cuid())
+  faturaId        String
+  contratoItemId  String
+  quantidade      Decimal @db.Decimal(10, 2)
+  precoUnitario   Decimal @db.Decimal(12, 2)
+  total           Decimal @db.Decimal(12, 2)
+  /// Competencia do preco usado, para provar qual valor vigia naquela cobranca.
+  precoVigencia   DateTime @db.Date
+
+  fatura       Fatura       @relation(fields: [faturaId], references: [id])
+  contratoItem ContratoItem @relation(fields: [contratoItemId], references: [id])
+
+  @@unique([faturaId, contratoItemId])
+  @@map("fatura_itens")
+}
+
+enum FormaPagamento {
+  PIX
+  DINHEIRO
+  TRANSFERENCIA
+  CHEQUE
+  CARTAO
+  OUTRO
+}
+
+model Titulo {
+  id            String @id @default(cuid())
+  faturaId      String
+  contratoId    String
+  /// Denormalizado para consulta da matriz e da grade sem join profundo.
+  competencia   DateTime @db.Date
+  numero        String   @unique
+  devedorNome   String   @map("debtor_name")
+  condominioNome String? @map("condominium_name")
+  escopo        EscopoCobranca
+  valorOriginal Decimal  @db.Decimal(12, 2)
+  vencimento    DateTime @db.Date
+
+  // --- Controle manual, sem integracao bancaria ---
+  boletoGerado   Boolean @default(false) @map("boleto_issued")
+  boletoEmitidoEm DateTime? @db.Date
+  nossoNumero    String?
+  nfEmitida      Boolean @default(false) @map("invoice_issued")
+  nfNumero       String?
+  nfEmissaoEm    DateTime? @db.Date
+  pago           Boolean @default(false)
+  pagoEm         DateTime? @db.Date @map("paid_at")
+  forma          FormaPagamento?
+  /// Isento por convenio: fica fora do calculo de adimplencia e de receita recorrente.
+  isento         Boolean @default(false)
+  isentoMotivo   String?
+
+  criadoEm      DateTime @default(now()) @map("created_at")
+  atualizadoEm  DateTime @updatedAt @map("updated_at")
+
+  fatura     Fatura      @relation(fields: [faturaId], references: [id])
+  contrato   Contrato    @relation(fields: [contratoId], references: [id])
+  pagamentos Pagamento[]
+  lotes      EmissaoLoteTitulo[]
+
+  @@index([competencia])
+  @@index([vencimento])
+  @@index([pago, vencimento])
+  @@index([contratoId, competencia])
+  @@map("titulos")
+}
+
+model Pagamento {
+  id             String @id @default(cuid())
+  tituloId       String
+  valor          Decimal @db.Decimal(12, 2)
+  data           DateTime @db.Date
+  forma          FormaPagamento
+  /// Comprovante anexado: sem ele o dashboard conta como "recebimento sem comprovante".
+  comprovanteUrl String?
+  observacao     String?
+  anulado        Boolean @default(false) @map("reversed")
+  anuladoEm      DateTime? @map("reversed_at")
+  anuladoMotivo  String?
+  usuarioId      String?
+  criadoEm       DateTime @default(now()) @map("created_at")
+
+  titulo  Titulo @relation(fields: [tituloId], references: [id])
+  usuario User?  @relation(fields: [usuarioId], references: [id])
+
+  @@index([tituloId])
+  @@index([data])
+  @@map("pagamentos")
+}
+
+enum TipoEmissao {
+  BOLETO
+  NF
+  SEGUNDA_VIA
+}
+
+/// Prova auditavel da emissao manual: o que foi gerado, quando e por quem.
+model EmissaoLote {
+  id          String @id @default(cuid())
+  tipo        TipoEmissao
+  competencia DateTime @db.Date
+  descricao   String
+  quantidade  Int
+  valorTotal  Decimal @db.Decimal(12, 2)
+  arquivoUrl  String?
+  usuarioId   String?
+  criadoEm    DateTime @default(now()) @map("created_at")
+
+  usuario User?               @relation(fields: [usuarioId], references: [id])
+  titulos EmissaoLoteTitulo[]
+
+  @@index([competencia, tipo])
+  @@map("emissao_lotes")
+}
+
+model EmissaoLoteTitulo {
+  loteId   String
+  tituloId String
+  criadoEm DateTime @default(now()) @map("created_at")
+
+  lote   EmissaoLote @relation(fields: [loteId], references: [id])
+  titulo Titulo      @relation(fields: [tituloId], references: [id])
+
+  @@id([loteId, tituloId])
+  @@map("emissao_lote_titulos")
+}
+
+// ---------------------------------------------------------------------------
+// Comercial: Orcamento -> OS / Contrato
+// ---------------------------------------------------------------------------
+
+enum StatusOrcamento {
+  ABERTO
+  ENVIADO
+  APROVADO
+  RECUSADO
+  CONVERTIDO
+  EXPIRADO
+}
+
+enum EscopoItem {
+  /// Instalacao, venda pontual, servico unico -> vira OrdemServico.
+  PONTUAL
+  /// Aluguel/manutencao mensal -> vira Contrato + ContratoItem.
+  RECORRENTE
+}
+
+model Orcamento {
+  id           String @id @default(cuid())
+  numero       Int    @unique
+  clienteId    String
+  condominioId String?
+  titulo       String
+  descricao    String?
+  validade     DateTime @db.Date
+  status       StatusOrcamento @default(ABERTO)
+  valorTotal   Decimal @db.Decimal(12, 2) @default(0)
+  aprovadoEm   DateTime? @db.Date
+  convertidoEm DateTime?
+  /// Vinculo de saida da conversao (mantem origem para medir taxa de conversao).
+  contratoId   String?   @unique
+  criadoEm     DateTime @default(now()) @map("created_at")
+  atualizadoEm DateTime @updatedAt @map("updated_at")
+
+  cliente    Cliente     @relation("OrcamentoCliente", fields: [clienteId], references: [id])
+  condominio Condominio? @relation(fields: [condominioId], references: [id])
+  itens      OrcamentoItem[]
+  contrato   Contrato?   @relation("OrcamentoContrato", fields: [contratoId], references: [id])
+  ordensServico OrdemServico[] @relation("OrcamentoOS")
+
+  @@index([status])
+  @@map("orcamentos")
+}
+
+model OrcamentoItem {
+  id             String @id @default(cuid())
+  orcamentoId    String
+  catalogoItemId String
+  descricao      String
+  quantidade     Decimal @db.Decimal(10, 2)
+  precoUnitario  Decimal @db.Decimal(12, 2)
+  total          Decimal @db.Decimal(12, 2)
+  escopo         EscopoItem
+  /// Condicoes herdadas pelo contrato quando o item recorrente for convertido.
+  inicioVigencia DateTime? @db.Date
+  periodicidade  PeriodicidadeReajuste?
+
+  orcamento    Orcamento    @relation(fields: [orcamentoId], references: [id])
+  catalogoItem CatalogoItem @relation(fields: [catalogoItemId], references: [id])
+
+  @@map("orcamento_itens")
+}
+
+enum TipoOS {
+  INSTALACAO
+  MANUTENCAO
+  VISTORIA
+  RETIRADA
+}
+
+enum StatusOS {
+  ABERTA
+  AGENDADA
+  EM_EXECUCAO
+  CONCLUIDA
+  CANCELADA
+}
+
+/// OS simplificada na F1: registro da intervencao. Apontamento de horas/materiais vem na F2.
+model OrdemServico {
+  id           String @id @default(cuid())
+  numero       Int    @unique
+  tipo         TipoOS
+  status       StatusOS @default(ABERTA)
+  orcamentoId  String?
+  contratoId   String?
+  condominioId String?
+  unidadeId    String?
+  descricao    String
+  agendadaPara DateTime? @db.Date
+  concluidaEm  DateTime? @db.Date
+  criadoEm     DateTime @default(now()) @map("created_at")
+  atualizadoEm DateTime @updatedAt @map("updated_at")
+
+  orcamento    Orcamento?  @relation("OrcamentoOS", fields: [orcamentoId], references: [id])
+  contrato     Contrato?   @relation(fields: [contratoId], references: [id])
+  condominio   Condominio? @relation(fields: [condominioId], references: [id])
+  unidade      Unidade?    @relation(fields: [unidadeId], references: [id])
+
+  @@index([status])
+  @@map("ordens_servico")
+}

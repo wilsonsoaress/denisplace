@@ -1,0 +1,103 @@
+name: denisplace
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: denisplace-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-denisplace}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-denisplace}
+      POSTGRES_DB: ${POSTGRES_DB:-denisplace}
+      # competencia e vencimento sao datas puras; evitar qualquer surpresa de fuso
+      TZ: America/Sao_Paulo
+      PGTZ: America/Sao_Paulo
+    ports:
+      # Portas proprias: esta maquina roda outros projetos que ja usam 5432/6379/3000.
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-denisplace} -d ${POSTGRES_DB:-denisplace}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: denisplace-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:6390:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # app e worker compartilham a MESMA imagem, mudando apenas o comando.
+  # Sobe com:  docker compose --profile full up --build
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: denisplace-app
+    profiles: ["full"]
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Dentro da rede do compose os servicos tem outro hostname; o .env aponta para o host.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-denisplace}:${POSTGRES_PASSWORD:-denisplace}@db:5432/${POSTGRES_DB:-denisplace}?schema=public
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    ports:
+      - "127.0.0.1:3100:3000"
+    command: ["node", "server.js"]
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: denisplace-worker
+    profiles: ["full"]
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-denisplace}:${POSTGRES_PASSWORD:-denisplace}@db:5432/${POSTGRES_DB:-denisplace}?schema=public
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    command: ["node", "dist/worker.js"]
+
+  # Backup diario do banco para um volume separado. Subir com o profile "ops".
+  backup:
+    image: postgres:16-alpine
+    container_name: denisplace-backup
+    profiles: ["ops"]
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-denisplace}
+    volumes:
+      - backups:/backups
+    entrypoint: >
+      /bin/sh -c "while true; do
+        pg_dump -h db -U ${POSTGRES_USER:-denisplace} -d ${POSTGRES_DB:-denisplace} -Fc
+          -f /backups/denisplace-$$(date +%Y%m%d).dump;
+        find /backups -name '*.dump' -mtime +14 -delete;
+        sleep 86400;
+      done"
+    depends_on:
+      db: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  redisdata:
+  backups:
