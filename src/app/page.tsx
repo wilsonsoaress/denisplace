@@ -1,15 +1,7 @@
 import { prisma } from '@/server/db';
+import { MODULOS } from '@/lib/modulos';
 
 export const dynamic = 'force-dynamic';
-
-const MODULOS_F1 = [
-  { href: '/cadastros', nome: 'Cadastros', desc: 'Clientes, condomínios e unidades, catálogo, equipamentos, índices' },
-  { href: '/contratos', nome: 'Contratos', desc: 'Vigência, itens, reajuste versionado, aderências e aditivos' },
-  { href: '/orcamentos', nome: 'Orçamentos', desc: 'Aprovação converte em OS (pontual) e contrato (recorrente)' },
-  { href: '/financeiro/contas-a-receber', nome: 'Contas a receber', desc: 'NF, boleto, pago + data, multa/juros e ações em lote' },
-  { href: '/financeiro/matriz', nome: 'Matriz de inadimplência', desc: 'Devedor × competência, projetada dos títulos' },
-  { href: '/financeiro/dashboard', nome: 'Dashboard financeiro', desc: 'KPIs, adimplência por competência e controle de emissão' },
-];
 
 export default async function HomePage() {
   let contagem: Record<string, number | string> | null = null;
@@ -55,11 +47,20 @@ export default async function HomePage() {
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {MODULOS_F1.map((m) => (
-          <a key={m.href} href={m.href} className="card hover:border-brand hover:bg-blue-50/40">
-            <h2 className="text-sm font-semibold">{m.nome}</h2>
+        {MODULOS.map((m) => (
+          <div key={m.href} className={`card ${m.pronto ? 'hover:border-brand hover:bg-blue-50/40' : 'opacity-70'}`}>
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              {m.pronto ? (
+                <a href={m.href} className="hover:underline">
+                  {m.nome}
+                </a>
+              ) : (
+                m.nome
+              )}
+              {!m.pronto ? <span className="chip chip-warn">em construção</span> : null}
+            </h2>
             <p className="mt-1 text-xs text-slate-600">{m.desc}</p>
-          </a>
+          </div>
         ))}
       </section>
     </div>
