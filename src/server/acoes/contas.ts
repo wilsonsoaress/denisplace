@@ -58,8 +58,9 @@ async function reaplicarQuitacao(
 function revalidar(tituloId: string) {
   revalidatePath('/financeiro/contas-a-receber');
   revalidatePath(`/financeiro/contas-a-receber/${tituloId}`);
-  // Criterio de aceite da F1: dar baixa na grade e ver o dashboard mudar na mesma sessao.
+  // Criterio de aceite da F1: dar baixa na grade e ver dashboard e matriz mudarem na mesma sessao.
   revalidatePath('/financeiro/dashboard');
+  revalidatePath('/financeiro/matriz');
 }
 
 async function recarregar(tituloId: string): Promise<TituloCarregado | null> {

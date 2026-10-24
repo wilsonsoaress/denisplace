@@ -37,7 +37,7 @@ export const MODULOS: Modulo[] = [
     nome: 'Matriz de inadimplência',
     curto: 'Matriz',
     desc: 'Devedor × competência, projetada dos títulos',
-    pronto: false,
+    pronto: true,
   },
   {
     href: '/financeiro/dashboard',
