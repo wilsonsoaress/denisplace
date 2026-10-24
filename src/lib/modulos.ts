@@ -19,6 +19,13 @@ export const MODULOS: Modulo[] = [
     pronto: true,
   },
   {
+    href: '/orcamentos',
+    nome: 'Orçamentos',
+    curto: 'Orçamentos',
+    desc: 'Aprovação converte em OS (pontual) e contrato (recorrente)',
+    pronto: true,
+  },
+  {
     href: '/contratos',
     nome: 'Contratos',
     curto: 'Contratos',
@@ -45,12 +52,5 @@ export const MODULOS: Modulo[] = [
     curto: 'Dashboard',
     desc: 'KPIs, adimplência por competência e controle de emissão',
     pronto: true,
-  },
-  {
-    href: '/orcamentos',
-    nome: 'Orçamentos',
-    curto: 'Orçamentos',
-    desc: 'Aprovação converte em OS (pontual) e contrato (recorrente)',
-    pronto: false,
   },
 ];
