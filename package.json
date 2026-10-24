@@ -24,7 +24,8 @@
     "db:reset": "prisma migrate reset --force",
     "db:backup": "bash scripts/backup.sh",
     "db:restore": "bash scripts/restore.sh",
-    "cobranca:gerar": "tsx src/server/scripts/gerar-cobranca.ts"
+    "cobranca:gerar": "tsx src/server/scripts/gerar-cobranca.ts",
+    "import:planilha": "tsx src/server/scripts/importar-planilha.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

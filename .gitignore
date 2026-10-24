@@ -32,6 +32,10 @@ storage/
 # dumps do backup diario (contem dados pessoais: nunca versionar)
 backups/
 
+# planilha importada e relatorio de rejeicoes (contem dados pessoais: so o template e versionado)
+importacao/*
+!importacao/template-*.csv
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

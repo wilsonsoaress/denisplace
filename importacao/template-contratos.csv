@@ -1,0 +1,3 @@
+numero;cliente_nome;cliente_documento;cliente_tipo;condominio_nome;condominio_cidade;unidade_codigo;escopo;item_nome;quantidade;preco;inicio;fim;vencimento_dia;indice_sigla;periodicidade_reajuste;status;observacoes
+9001;Condominium Exemplo;12345678000199;PJ;Exemplo;São Paulo;;CONDOMINIO;Aluguel de câmeras + manutenção;1;4800,00;01/11/2025;;5;IPCA;ANUAL;VIGENTE;linha de exemplo do template
+9002;Maria de Exemplo;98765432100;PF;Exemplo;São Paulo;Apto 101 — bloco A;UNIDADE;Manutenção mensal;1;120,00;01/11/2025;;10;IGP-M;ANUAL;VIGENTE;linha de exemplo do template

@@ -1,0 +1,5 @@
+numero;competencia;valor_cobrado;data_vencimento;devedor_nome;esta_pago;pago_em;forma;boleto_emitido;nf_emitida;nf_numero;nosso_numero;isento;observacoes
+9001;11/2025;4800,00;05/11/2025;;sim;10/11/2025;TRANSFERENCIA;sim;sim;NF-1001;12345;nao;linha de exemplo do template
+9001;12/2025;4800,00;05/12/2025;;nao;;;sim;nao;;;nao;linha de exemplo do template
+9002;11/2025;120,00;10/11/2025;Apto 101 — bloco A;sim;12/11/2025;PIX;sim;nao;;;nao;linha de exemplo do template
+9002;12/2025;0,00;10/12/2025;Apto 101 — bloco A;nao;;;nao;nao;;;sim;convênio de cortesia (linha de exemplo)

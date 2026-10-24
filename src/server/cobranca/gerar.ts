@@ -50,7 +50,8 @@ function estaVigente(status: string, inicio: DateISO, fim: DateISO | null, comp:
   return true;
 }
 
-function numeroDoTitulo(contratoNumero: number, comp: Competencia): string {
+/** Numeração do título: única também para a importação, que reprocessa mês antigo. */
+export function numeroDoTitulo(contratoNumero: number, comp: Competencia): string {
   return `T${comp.slice(0, 4)}${comp.slice(5, 7)}-${String(contratoNumero).padStart(5, '0')}`;
 }
 
