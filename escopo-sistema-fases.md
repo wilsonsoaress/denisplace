@@ -99,12 +99,34 @@ Remessa/retorno bancário, conciliação automática, estoque e compras, contas 
 
 | Módulo | Telas | Entrega |
 |---|---|---|
+| **Contas a pagar** (abre a F2) | Competência, fornecedor, categoria, valor, vencimento, **pago sim/não + data**, NF de entrada, vínculo opcional com contrato/OS/equipamento. Ações em lote: marcar pago, exportar CSV. Detalhe com histórico de pagamentos e estorno | Custo real por período e base da margem; espelha o contas a receber para fechar o caixa |
 | Ordens de serviço | Lista de OS, abertura, execução com apontamento de horas e materiais, checklist, fotos, OS por contrato/equipamento | Instalação e manutenção rastreáveis; OS nasce do orçamento aprovado |
 | Estoque e peças | Peças por modelo Pináculo, entrada/saída, aplicação em OS, estoque mínimo e alerta de compra | Custo real da intervenção |
 | Compras e fornecedores | Pedido de compra, recebimento, NF de entrada, pagamento com prazo | Contas a pagar alimentada por documento, não por digitação livre |
-| **Contas a pagar** | Competência, fornecedor, categoria, **vínculo opcional com contrato**, status pago/em aberto | Base da margem |
 | **Resultado por contrato** | Mensalidade − custo direto (equipamento, peças, horas) por contrato e por período | Mostra qual contrato dá prejuízo e sustenta o preço de renovação |
 | Manutenção preventiva | Plano por contrato (periodicidade), geração automática de OS, pendências por condomínio | Reduz quebra e justifica a mensalidade perante síndico |
+
+### 4.1 Contas a pagar — por que é o primeiro módulo da F2
+
+É o lado espelhado do contas a receber da F1: mesma cadeia `Lançamento (competência) → Título a pagar → Pagamento`, mesmos flags manuais (sem integração bancária), mesma regra de multa/juros opcional quando o pagamento sai depois do vencimento. Por isso ele entra antes de estoque e compras — sem custo lançado não existe margem, e o dashboard da F1 já deixa o lugar pronto para receber o "a pagar".
+
+**Telas e campos essenciais**
+
+| Tela | Conteúdo essencial |
+|---|---|
+| Contas a pagar | Grade por competência: fornecedor, categoria (equipamento, instalação, manutenção, comissão, frete, taxa, outro), valor, vencimento, **pago sim/não + data**, NF de entrada, contrato/OS vinculada (opcional), situação (em aberto / vencida / paga). Filtros por fornecedor, categoria, competência e situação; ações em lote para marcar pago e exportar CSV |
+| Lançamento avulso | Recorrente (mensalidade de link, aluguel de equipamento próprio) ou pontual (peça, serviço do técnico), com competência e centro de custo |
+| Detalhe do lançamento | Pagamentos parciais e estorno com motivo, anexo da NF de entrada, histórico |
+| Resumão por contrato | Custo do contrato no período, quando o lançamento tem vínculo — alimenta "Resultado por contrato" |
+
+**Regras de negócio**
+- Mesma regra de quitação do contas a receber: `pago` é consequência dos pagamentos registrados, e o saldo congela na data do pagamento.
+- Lançamento com vínculo em contrato entra no custo daquele contrato; sem vínculo entra só no custo geral do mês.
+- Categoria recorrente gera lançamento automático na competência seguinte (job igual ao da cobrança), com valor reajustável pelo mesmo mecanismo de índice da receita.
+- Nada é apagado: estorno anula o pagamento com data e motivo, como no contas a receber.
+- Sem NF de entrada o lançamento é permitido, mas marcado como "sem documento" — é o que impede o custo sumir da margem.
+
+**Critério de aceite:** fechar a competência com o total a pagar batendo com as NFs de entrada conferidas, e ver o custo do mês ao lado da receita no dashboard.
 
 **Critérios de aceite da F2:** fechar o mês com contas a pagar batendo com os recebimentos de NF; ver margem de um contrato escolhendo-o na tela; uma OS de instalação consumir estoque e refletir no custo do contrato de origem.
 
@@ -140,7 +162,8 @@ Premissa: **1 dev full-stack + 1 dev front half-time**, com especificação apro
 | | Transversal (perfis, auditoria, importação, backup) | 10–14 dias | |
 | | Testes, importação dos dados reais, homologação | 10–12 dias | |
 | | **Total F1** | **83–100 dias** | **≈ 4 meses** |
-| **F2** | OS + estoque + compras + contas a pagar + margem + preventiva | 55–70 dias | ≈ 3 meses |
+| **F2** | Contas a pagar (abre a fase) | 10–14 dias | |
+| | OS + estoque + compras + margem + preventiva | 45–56 dias | ≈ 3 meses |
 | **F3** | Régua + acordos + portal + conciliação + app + relatórios | 60–80 dias | ≈ 3–4 meses |
 
 **Risco de estimativa:** a F1 depende mais da qualidade da planilha legada do que do código. Prever 5–10 dias de saneamento de dados se o histórico vier sem competência, sem forma de pagamento ou com devedor ambíguo (condomínio × morador).
@@ -153,7 +176,7 @@ Premissa: **1 dev full-stack + 1 dev front half-time**, com especificação apro
 2. **Construção F1** com demonstração quinzenal usando dados reais de um condomínio-piloto.
 3. **Carga de dados + paralelismo:** rodar sistema e planilha juntos por **2 competências completas**. Só desligar a planilha depois que a matriz bater com o fechamento manual.
 4. **Go-live F1** no início de uma competência (nunca no meio).
-5. **F2** começa depois de 1 mês de F1 estável — senão o time de operação não adota.
+5. **F2** começa depois de 1 mês de F1 estável — senão o time de operação não adota. Primeiro módulo: **contas a pagar** (é o espelho do contas a receber e destrava a margem); OS e estoque vêm em seguida.
 6. **F3** por peça: régua de cobrança primeiro (maior retorno), portal depois.
 
 ---
