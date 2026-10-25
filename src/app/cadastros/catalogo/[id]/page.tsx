@@ -61,7 +61,7 @@ export default async function CatalogoItemPage({
             <p className="text-sm text-slate-500">Nenhum contrato usa este item ainda.</p>
           ) : (
             <div className="max-h-[28rem] overflow-auto">
-              <table className="grid">
+              <table className="data">
                 <thead>
                   <tr>
                     <th>Contrato</th>

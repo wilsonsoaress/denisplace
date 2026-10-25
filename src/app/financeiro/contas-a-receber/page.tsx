@@ -157,7 +157,7 @@ export default async function ContasReceberPage({
           }
         >
           <div className="card overflow-x-auto p-0">
-            <table className="grid">
+            <table className="data">
               <thead>
                 <tr>
                   <th></th>

@@ -102,7 +102,7 @@ export default async function IndicePage({
               <Vazio>Nenhum valor informado — reajuste com este índice fica bloqueado.</Vazio>
             ) : (
               <div className="max-h-[24rem] overflow-auto">
-                <table className="grid">
+                <table className="data">
                   <thead>
                     <tr>
                       <th>Competência</th>

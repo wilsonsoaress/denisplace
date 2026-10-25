@@ -257,7 +257,7 @@ export default async function ContratoPage({
               <p className="mb-3 text-sm text-slate-500">Nenhum item cadastrado.</p>
             ) : (
               <div className="mb-4 overflow-x-auto">
-                <table className="grid">
+                <table className="data">
                   <thead>
                     <tr>
                       <th>Item</th>
@@ -385,7 +385,7 @@ export default async function ContratoPage({
                 </p>
               ) : (
                 <div className="mb-4 max-h-96 overflow-auto">
-                  <table className="grid">
+                  <table className="data">
                     <thead>
                       <tr>
                         <th>Unidade</th>
@@ -537,7 +537,7 @@ export default async function ContratoPage({
                 <p className="mt-3 text-sm text-slate-500">Nenhum título gerado ainda.</p>
               ) : (
                 <div className="mt-3 max-h-80 overflow-auto">
-                  <table className="grid">
+                  <table className="data">
                     <thead>
                       <tr>
                         <th>Comp.</th>

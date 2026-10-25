@@ -138,7 +138,7 @@ export default async function MatrizPage({
           </div>
 
           <div className="overflow-x-auto">
-            <table className="grid min-w-max text-xs">
+            <table className="data min-w-max text-xs">
               <thead>
                 <tr>
                   <th className="sticky left-0 z-10 bg-white px-2 py-2 text-left">Devedor</th>

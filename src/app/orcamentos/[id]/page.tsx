@@ -108,7 +108,7 @@ export default async function OrcamentoPage({
               <p className="text-sm text-slate-500">Nenhum item ainda.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="grid">
+                <table className="data">
                   <thead>
                     <tr>
                       <th>Item</th>

@@ -142,7 +142,7 @@ export default async function CondominioPage({
               </p>
             ) : (
               <div className="mb-4 max-h-96 overflow-auto">
-                <table className="grid">
+                <table className="data">
                   <thead>
                     <tr>
                       <th>Código</th>

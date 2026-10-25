@@ -74,7 +74,7 @@ export default async function HomePage() {
           gravação: esconder o botão é cortesia, a recusa no servidor é a segurança.
         </p>
         <div className="mt-3 overflow-x-auto">
-          <table className="grid text-sm">
+          <table className="data text-sm">
             <thead>
               <tr>
                 <th>Módulo</th>

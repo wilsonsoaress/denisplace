@@ -110,7 +110,7 @@ export default async function OrcamentosPage({
         <Vazio>Nenhum orçamento com esses filtros.</Vazio>
       ) : (
         <div className="overflow-x-auto">
-          <table className="grid">
+          <table className="data">
             <thead>
               <tr>
                 <th>Nº</th>

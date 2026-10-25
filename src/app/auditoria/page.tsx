@@ -76,7 +76,7 @@ export default async function AuditoriaPage({
         <Vazio>Nenhum evento com esses filtros.</Vazio>
       ) : (
         <div className="overflow-x-auto">
-          <table className="grid">
+          <table className="data">
             <thead>
               <tr>
                 <th>Quando</th>
