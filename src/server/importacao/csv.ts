@@ -1,8 +1,8 @@
-import { assertDate, type Competencia, type DateISO } from '@/domain/dates';
+import { daysInMonth, type Competencia, type DateISO } from '@/domain/dates';
 
 export type Campo<T> = { ok: true; valor: T } | { ok: false; erro: string };
 
-export type ErroCampo = { campo: string; motivo: string };
+export type ErroCampo = { campo: string; motivo: string; linha?: number };
 
 export type Linha = { numero: number; valores: Record<string, string> };
 
@@ -143,7 +143,7 @@ export function lerCsv(textoBruto: string): Csv {
   const texto = textoBruto.replace(/^\uFEFF/, '').replace(/\r/g, '');
   const [cabecalhoBruto = '', ...demais] = texto.split('\n');
   if (cabecalhoBruto.trim() === '') {
-    return { colunas: [], linhas: [], erros: [{ campo: '_', motivo: 'Arquivo sem cabeçalho.' }] };
+    return { colunas: [], linhas: [], erros: [{ campo: '_', motivo: 'Arquivo sem cabeçalho.', linha: 1 }] };
   }
   const sep = delimitadorDe(cabecalhoBruto);
   const vistas = new Set<string>();
@@ -151,7 +151,7 @@ export function lerCsv(textoBruto: string): Csv {
   const colunas = dividir(cabecalhoBruto, sep).map((bruta, i) => {
     const chave = colunaCanonica(bruta);
     if (vistas.has(chave)) {
-      erros.push({ campo: chave, motivo: `Coluna "${bruta}" repetida no cabeçalho: a segunda virou ${chave}_2.` });
+      erros.push({ campo: chave, motivo: `Coluna "${bruta}" repetida no cabeçalho: a segunda virou ${chave}_2.`, linha: 1 });
       return `${chave}_2`;
     }
     vistas.add(chave);
@@ -168,7 +168,8 @@ export function lerCsv(textoBruto: string): Csv {
     if (campos.length !== colunas.length) {
       erros.push({
         campo: '_',
-        motivo: `Linha ${numero} tem ${campos.length} colunas, o cabeçalho tem ${colunas.length}.`,
+        motivo: `Tem ${campos.length} colunas, o cabeçalho tem ${colunas.length}.`,
+        linha: numero,
       });
       return;
     }
@@ -218,8 +219,28 @@ export function decimal(linha: Linha, coluna: string, rotulo: string): Campo<str
 
 const PADRAO_BRA = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/;
 const PADRAO_ISO = /^(\d{4})-(\d{2})-(\d{2})$/;
+const PADRAO_MES = /^(\d{1,2})[/-](\d{4})$/;
 
 const doisDigitos = (v: string) => v.padStart(2, '0');
+
+/**
+ * Uma célula que não existe no calendário (13/2025, 31/02/2025) precisa virar
+ * rejeição de linha aqui. Devolvida como `ok: true`, ela explode no `assertDate`
+ * do domínio durante a gravação e a importação inteira aborta sem relatório.
+ */
+function dataDeGrupos(ano: string, mes: string, dia: string): DateISO | null {
+  const m = Number(mes);
+  const d = Number(dia);
+  if (m < 1 || m > 12) return null;
+  if (d < 1 || d > daysInMonth(Number(ano), m)) return null;
+  return `${ano}-${doisDigitos(mes)}-${doisDigitos(dia)}`;
+}
+
+function competenciaDeGrupos(ano: string, mes: string): Competencia | null {
+  const m = Number(mes);
+  if (m < 1 || m > 12) return null;
+  return `${ano}-${doisDigitos(mes)}-01`;
+}
 
 /** Aceita DD/MM/AAAA, DD-MM-AAAA e YYYY-MM-DD e devolve a data de domínio (ISO). */
 export function data(linha: Linha, coluna: string, rotulo: string): Campo<DateISO> {
@@ -228,14 +249,16 @@ export function data(linha: Linha, coluna: string, rotulo: string): Campo<DateIS
   const brasileira = PADRAO_BRA.exec(bruto);
   if (brasileira) {
     const [, dia, mes, ano] = brasileira as unknown as [string, string, string, string];
-    return { ok: true, valor: `${ano}-${doisDigitos(mes)}-${doisDigitos(dia)}` };
+    const valor = dataDeGrupos(ano, mes, dia);
+    if (!valor) return { ok: false, erro: `${rotulo} "${bruto}" não é uma data válida.` };
+    return { ok: true, valor };
   }
-  if (PADRAO_ISO.test(bruto)) {
-    try {
-      return { ok: true, valor: assertDate(bruto) };
-    } catch {
-      return { ok: false, erro: `${rotulo} "${bruto}" não é uma data válida.` };
-    }
+  const iso = PADRAO_ISO.exec(bruto);
+  if (iso) {
+    const [, ano, mes, dia] = iso as unknown as [string, string, string, string];
+    const valor = dataDeGrupos(ano, mes, dia);
+    if (!valor) return { ok: false, erro: `${rotulo} "${bruto}" não é uma data válida.` };
+    return { ok: true, valor };
   }
   return { ok: false, erro: `${rotulo} use DD/MM/AAAA (ex: 05/11/2025).` };
 }
@@ -246,14 +269,16 @@ export function dataOpcional(linha: Linha, coluna: string, rotulo: string): Camp
   return data(linha, coluna, rotulo);
 }
 
-/** Competência a partir de MM/AAAA, YYYY-MM, YYYY-MM-DD ou qualquer data do mês. */
+/** Competência a partir de MM/AAAA, MM-AAAA ou de uma data ISO do mês. */
 export function competencia(linha: Linha, coluna: string, rotulo: string): Campo<Competencia> {
   const bruto = texto(linha, coluna);
   if (bruto === '') return { ok: false, erro: `${rotulo} é obrigatório.` };
-  const brasileira = /^(\d{1,2})[/-](\d{4})$/.exec(bruto);
-  if (brasileira) {
-    const [, mes, ano] = brasileira as unknown as [string, string, string];
-    return { ok: true, valor: `${ano}-${doisDigitos(mes)}-01` };
+  const mensal = PADRAO_MES.exec(bruto);
+  if (mensal) {
+    const [, mes, ano] = mensal as unknown as [string, string, string];
+    const valor = competenciaDeGrupos(ano, mes);
+    if (!valor) return { ok: false, erro: `${rotulo} "${bruto}" não é um mês válido.` };
+    return { ok: true, valor };
   }
   if (PADRAO_ISO.test(bruto)) {
     const dataConvertida = data(linha, coluna, rotulo);

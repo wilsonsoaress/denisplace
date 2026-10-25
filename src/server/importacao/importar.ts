@@ -478,7 +478,7 @@ export async function importarPlanilha(opcoes: Opcoes): Promise<Resumo> {
     [cobrancas?.nome, cobrancas?.csv],
   ] as const) {
     if (!nome || !csv) continue;
-    for (const e of csv.erros) recusar(resumo, nome, 0, e.campo, e.motivo);
+    for (const e of csv.erros) recusar(resumo, nome, e.linha ?? 0, e.campo, e.motivo);
   }
 
   try {

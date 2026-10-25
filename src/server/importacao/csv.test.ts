@@ -47,7 +47,7 @@ describe('lerCsv', () => {
   it('preserva aspas duplas escapadas e rejeita linha com colunas a menos', () => {
     const csv = lerCsv('numero;observacoes\n1;"bloco ""A"""\n2\n');
     expect(csv.linhas[0]?.valores['observacoes']).toBe('bloco "A"');
-    expect(csv.erros[0]?.motivo).toContain('Linha 3');
+    expect(csv.erros[0]).toEqual({ campo: '_', motivo: 'Tem 1 colunas, o cabeçalho tem 2.', linha: 3 });
   });
 
   it('tolera BOM e cai para ISO-8859-1 quando o arquivo não é UTF-8', () => {
@@ -78,10 +78,23 @@ describe('coerção dos valores da planilha', () => {
     expect(data(linhaDe('d', '11/05'), 'd', 'Data').ok).toBe(false);
   });
 
+  it('recusa data que não existe no calendário', () => {
+    expect(data(linhaDe('d', '31/02/2025'), 'd', 'Data').ok).toBe(false);
+    expect(data(linhaDe('d', '13/13/2025'), 'd', 'Data').ok).toBe(false);
+    expect(data(linhaDe('d', '2025-02-30'), 'd', 'Data').ok).toBe(false);
+    expect(data(linhaDe('d', '29/02/2024'), 'd', 'Data')).toEqual({ ok: true, valor: '2024-02-29' });
+  });
+
   it('transforma qualquer escrita do mês em competência', () => {
     expect(competencia(linha, 'competencia', 'Competência')).toEqual({ ok: true, valor: '2025-11-01' });
     expect(competencia(linhaDe('c', '2025-11-15'), 'c', 'Competência')).toEqual({ ok: true, valor: '2025-11-01' });
     expect(competencia(linhaDe('c', '2025'), 'c', 'Competência').ok).toBe(false);
+  });
+
+  it('recusa competência fora de 1-12 em vez de gravar mês inexistente', () => {
+    expect(competencia(linhaDe('c', '13/2025'), 'c', 'Competência').ok).toBe(false);
+    expect(competencia(linhaDe('c', '0/2025'), 'c', 'Competência').ok).toBe(false);
+    expect(competencia(linhaDe('c', '2025-13-01'), 'c', 'Competência').ok).toBe(false);
   });
 
   it('entende sim/não e reclama de valor que não é opção', () => {
