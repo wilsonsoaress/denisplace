@@ -50,6 +50,10 @@ export function Formulario({
     for (const [nome, valor] of Object.entries(enviados.current)) {
       for (const el of form.querySelectorAll(`[name="${CSS.escape(nome)}"]`)) {
         const campo = el as HTMLInputElement;
+        // Botão submit não é campo: os quatro do lote compartilham name="tipo" e o
+        // clique é quem escolhe a ação. Restaurar o valor ali deixaria o próximo
+        // clique enviando o tipo do envio anterior.
+        if (campo.tagName === 'BUTTON') continue;
         if (campo.type === 'checkbox') campo.checked = valor === '1';
         else if (campo.type !== 'hidden') campo.value = valor;
       }
