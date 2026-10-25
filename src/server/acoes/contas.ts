@@ -361,6 +361,102 @@ export async function marcarEmitido(_prev: EstadoForm, fd: FormData): Promise<Es
   };
 }
 
+const schemaBaixaLote = z.object({
+  data: dataISO('Data do pagamento'),
+  forma: enumDe('Forma de pagamento', FORMAS),
+});
+
+/**
+ * Baixa em lote: cada titulo recebe o que deve na data informada, por isso o
+ * valor nao e campo do lote — um numero unico quitaria de menos quem esta em
+ * atraso e a mais quem ainda nem venceu.
+ */
+export async function registrarPagamentoEmLote(_prev: EstadoForm, fd: FormData): Promise<EstadoForm> {
+  const resultado = validar(schemaBaixaLote, fd);
+  if (!resultado.ok) return { erros: resultado.erros };
+  const { data, forma } = resultado.dados;
+
+  const acesso = await autorizar('financeiro');
+  if (!('usuario' in acesso)) return acesso;
+
+  const ids = idsSelecionados(fd);
+  if (ids.length === 0) {
+    return { erros: { _: 'Nenhum título selecionado. Marque as linhas da grade antes de dar a baixa.' } };
+  }
+  if (data > hoje()) return { erros: { data: 'A data do pagamento não pode ser futura.' } };
+
+  const titulos = await prisma.titulo.findMany({ where: { id: { in: ids } }, include: { pagamentos: true } });
+  if (titulos.length !== ids.length) {
+    return { erros: { _: 'Um dos títulos selecionados não existe mais. Recarregue a grade.' } };
+  }
+
+  const jaQuitados = titulos.filter((t) => t.pago);
+  const isentos = titulos.filter((t) => t.isento && !t.pago);
+  if (jaQuitados.length > 0 || isentos.length > 0) {
+    const exemplos = [...jaQuitados, ...isentos].slice(0, 5).map((t) => t.numero).join(', ');
+    const partes = [
+      jaQuitados.length > 0 ? `${jaQuitados.length} já quitado(s)` : null,
+      isentos.length > 0 ? `${isentos.length} isento(s)` : null,
+    ].filter(Boolean);
+    return {
+      erros: {
+        _: `A baixa em lote não aceita mistura: ${partes.join(' e ')} (ex: ${exemplos}). Desmarque essas linhas — quitação se corrige pelo estorno na tela do título, e isento só volta a pagar com a isenção retirada.`,
+      },
+    };
+  }
+
+  const baixas: { tituloId: string; numero: string; valor: Money }[] = [];
+  for (const t of titulos) {
+    const vencimento = toISO(t.vencimento) as DateISO;
+    const devido = devidoNaData(money(D(t.valorOriginal)), vencimento, data);
+    const recebido = pagamentosValidos(t).reduce<Money>((acc, p) => acc.plus(p.valor), D(0));
+    const valor = money(devido.minus(recebido));
+    if (valor.lte(0)) {
+      return {
+        erros: {
+          _: `O título ${t.numero} já tem ${brl(recebido)} registrados e nada a pagar em ${data}. Desmarque esta linha.`,
+        },
+      };
+    }
+    baixas.push({ tituloId: t.id, numero: t.numero, valor });
+  }
+
+  const total = baixas.reduce<Money>((acc, b) => acc.plus(b.valor), D(0));
+  await prisma.$transaction(async (tx) => {
+    for (const b of baixas) {
+      await tx.pagamento.create({
+        data: { tituloId: b.tituloId, valor: b.valor, data: toDate(data), forma, usuarioId: acesso.usuario.id },
+      });
+      await reaplicarQuitacao(tx, b.tituloId);
+    }
+  });
+
+  for (const b of baixas) {
+    await registrarAuditoria(acesso.usuario, {
+      acao: 'titulo.pagamento',
+      entidade: 'titulo',
+      entidadeId: b.tituloId,
+      resumo: `${brl(b.valor)} em ${data} (${FORMA_PAGAMENTO[forma]}) · baixa em lote de ${baixas.length} título(s)`,
+    });
+    revalidatePath(`/financeiro/contas-a-receber/${b.tituloId}`);
+  }
+  revalidatePath('/financeiro/contas-a-receber');
+  revalidatePath('/financeiro/dashboard');
+  revalidatePath('/financeiro/matriz');
+
+  return {
+    mensagem: `Baixa registrada em ${baixas.length} título(s) na data ${data} (${FORMA_PAGAMENTO[forma]}): ${brl(total)}. Multa e juros calculados até essa data.`,
+  };
+}
+
+/**
+ * A grade tem um formulario so porque as linhas selecionadas pertencem ao lote:
+ * o botao clicado diz se o lote e de emissao ou de baixa.
+ */
+export async function aplicarLoteDaGrade(prev: EstadoForm, fd: FormData): Promise<EstadoForm> {
+  return fd.get('tipo') === 'PAGAMENTO' ? registrarPagamentoEmLote(prev, fd) : marcarEmitido(prev, fd);
+}
+
 /**
  * Estorno da emissao: desmarca o controle de um titulo marcado por engano. Nao
  * apaga o lote anterior, que continua sendo a prova da emissão equivocada.

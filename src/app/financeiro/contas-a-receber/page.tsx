@@ -5,11 +5,12 @@ import { brl, D, type Money } from '@/domain/money';
 import { SITUACAO_LABEL } from '@/domain/cobranca';
 import { FORMA_PAGAMENTO } from '@/lib/rotulos';
 import { hoje } from '@/domain/dates';
-import { marcarEmitido } from '@/server/acoes/contas';
+import { aplicarLoteDaGrade } from '@/server/acoes/contas';
 import { Cabecalho, Filtro, Vazio } from '@/ui/pagina';
-import { Formulario } from '@/ui/form';
+import { Campo, Escolha, Formulario, Texto } from '@/ui/form';
 import { CHIP_SITUACAO, type Linha } from '@/server/relatorios/titulos';
 import { lerFiltros, linhasDosTitulos, LIMITE_LINHAS, SITUACAO_FILTRO } from './dados';
+import { SelecionarTudo } from './selecionar-tudo';
 
 export const metadata = { title: 'Contas a receber' };
 
@@ -18,6 +19,8 @@ const TIPOS_LOTE = [
   { value: 'NF', label: 'Emitir NF' },
   { value: 'SEGUNDA_VIA', label: 'Dar 2ª via' },
 ] as const;
+
+const OPCOES_FORMA = Object.entries(FORMA_PAGAMENTO).map(([value, label]) => ({ value, label }));
 
 function Sim() {
   return <span className="chip chip-ok">sim</span>;
@@ -136,7 +139,7 @@ export default async function ContasReceberPage({
         </Vazio>
       ) : (
         <Formulario
-          acao={marcarEmitido}
+          acao={aplicarLoteDaGrade}
           submit={
             editar ? (
               <>
@@ -148,10 +151,22 @@ export default async function ContasReceberPage({
                     {t.label}
                   </button>
                 ))}
+                <span className="self-stretch border-l border-slate-200 pl-4 text-xs text-slate-500">
+                  A baixa em lote quita cada título pelo que ele deve na data abaixo.
+                </span>
+                <Campo nome="data" rotulo="Data da baixa" obrigatorio dica="Multa e juros param de correr neste dia.">
+                  <Texto nome="data" tipo="date" valor={hoje()} obrigatorio />
+                </Campo>
+                <Campo nome="forma" rotulo="Forma" obrigatorio dica="Vale para todo o lote.">
+                  <Escolha nome="forma" opcoes={OPCOES_FORMA} obrigatorio />
+                </Campo>
+                <button type="submit" name="tipo" value="PAGAMENTO" className="btn btn-primary">
+                  Dar baixa em lote
+                </button>
               </>
             ) : (
               <span className="text-xs text-slate-500">
-                Seu perfil só lê a cobrança: a emissão em lote é do financeiro.
+                Seu perfil só lê a cobrança: a emissão e a baixa em lote são do financeiro.
               </span>
             )
           }
@@ -160,7 +175,9 @@ export default async function ContasReceberPage({
             <table className="data">
               <thead>
                 <tr>
-                  <th></th>
+                  <th>
+                    {editar ? <SelecionarTudo rotulo="Selecionar todos os títulos da tela" /> : null}
+                  </th>
                   <th>Título</th>
                   <th>Devedor</th>
                   <th>Condomínio</th>
