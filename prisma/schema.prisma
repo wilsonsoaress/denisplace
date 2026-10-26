@@ -89,18 +89,22 @@ model Cliente {
   cep          String?
   /// Condominio pode ser cliente e tambem pode ter clientes vinculados a ele.
   ehCondominio Boolean    @default(false) @map("is_condominium")
+  /// Morador cadastrado como cliente: o condominio a que ele pertence, mesmo sem contrato proprio.
+  condominioId String?
   observacoes  String?
   ativo        Boolean    @default(true)
   criadoEm     DateTime   @default(now()) @map("created_at")
   atualizadoEm DateTime   @updatedAt @map("updated_at")
 
   contratos        Contrato[]
-  condominios      Condominio[]
+  condominios      Condominio[]     @relation("CondominioCliente")
+  condominio       Condominio?      @relation("CondominioVinculo", fields: [condominioId], references: [id])
   aderencias       ContratoUnidade[]
   unidadesTitular  Unidade[]
   orcamentos       Orcamento[]        @relation("OrcamentoCliente")
 
   @@index([nome])
+  @@index([condominioId])
   @@map("clientes")
 }
 
@@ -121,7 +125,9 @@ model Condominio {
   criadoEm       DateTime @default(now()) @map("created_at")
   atualizadoEm   DateTime @updatedAt @map("updated_at")
 
-  cliente    Cliente?   @relation(fields: [clienteId], references: [id])
+  cliente    Cliente?   @relation("CondominioCliente", fields: [clienteId], references: [id])
+  /// Clientes-morador referenciados a este condominio no cadastro deles.
+  vinculados Cliente[]  @relation("CondominioVinculo")
   unidades   Unidade[]
   contratos  Contrato[]
   equipamentos Equipamento[]
@@ -446,6 +452,7 @@ enum FormaPagamento {
   TRANSFERENCIA
   CHEQUE
   CARTAO
+  BOLETO
   OUTRO
 }
 
