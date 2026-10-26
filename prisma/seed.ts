@@ -50,6 +50,38 @@ const MORADORES: MoradorDef[] = [
 /** Isento por convenio: fica fora do calculo de adimplencia. */
 const ISENTOS = new Set(['Casa 14 — bloco A']);
 
+/**
+ * Digito verificador pelo metodo classico da Receita (pesos decrescentes, resto
+ * mod 11). O seed precisa de documento valido de verdade porque a tela de edicao
+ * reenvia o que esta guardado: com um numero truncado o cadastro nao salvava.
+ */
+function dv(corp: string, pesos: number[]): number {
+  const resto = pesos.reduce((s, p, i) => s + p * Number(corp[i]), 0) % 11;
+  return resto < 2 ? 0 : 11 - resto;
+}
+
+/** base = os 9 primeiros digitos. */
+function cpfDe(base: string): string {
+  const p = [10, 9, 8, 7, 6, 5, 4, 3, 2];
+  const d1 = dv(base, p);
+  return `${base}${d1}${dv(`${base}${d1}`, [11, ...p])}`;
+}
+
+/** base = os 12 primeiros digitos (raiz + filial). */
+function cnpjDe(base: string): string {
+  const d1 = dv(base, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  return `${base}${d1}${dv(`${base}${d1}`, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2])}`;
+}
+
+const cpfDoSeed = (i: number) => {
+  const d = cpfDe(`1234567${String(i).padStart(2, '0')}`);
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+};
+const cnpjDoSeed = (i: number) => {
+  const d = cnpjDe(`12345678${String(10 + i).padStart(4, '0')}`);
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
+};
+
 const FORMAS = ['PIX', 'TRANSFERENCIA', 'CHEQUE', 'CARTAO', 'DINHEIRO'] as const;
 
 /** "Casa 12 — bloco A" -> { rotulo: "Casa 12", bloco: "bloco A" } */
@@ -171,7 +203,7 @@ async function main() {
       data: {
         tipo: 'PJ',
         nome: `Condomínio ${c.nome}`,
-        documento: `12.345.678/0001-${String(10 + i).padStart(2, '0')}`,
+        documento: cnpjDoSeed(i),
         email: `sindico@${c.nome.toLowerCase().replace(/[^a-z]/g, '')}.com.br`,
         cidade: c.cidade,
         uf: c.uf,
@@ -229,7 +261,7 @@ async function main() {
       data: {
         tipo: 'PF',
         nome: m.titular,
-        documento: `123.456.78${String(i).padStart(2, '0')}-00`,
+        documento: cpfDoSeed(i),
         cidade: 'São Paulo',
         uf: 'SP',
       },
