@@ -213,7 +213,7 @@ export default async function DashboardPage({
                   : 'sem cobrança na janela'
               }
             />
-            <Kpi rotulo="Receita isenta (convênio)" valor={brl(r.receitas.isento)} nota="não entra em adimplência nem em MRR" />
+            <Kpi rotulo="Receita isenta" valor={brl(r.receitas.isento)} nota="isenção marcada no título: não entra em adimplência nem em MRR" />
           </div>
 
           <div className="grid gap-3 xl:grid-cols-2">

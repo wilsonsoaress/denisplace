@@ -199,7 +199,7 @@ export default async function MatrizPage({
             <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-green-100" />paga (recebido)</span>
             <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-red-100" />vencida (saldo)</span>
             <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-amber-100" />a vencer (valor)</span>
-            <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-slate-100" />isenta (convênio)</span>
+            <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-slate-100" />isenta</span>
             <span className="text-slate-500">valores em R$ · passe o mouse na célula para ver devido, recebido e saldo</span>
           </p>
           {m.cortada ? (
