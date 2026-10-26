@@ -21,6 +21,7 @@ const schema = z.object({
   uf: opcional(2),
   cep: opcional(10),
   ehCondominio: booleano(),
+  condominioId: opcional(64),
   observacoes: opcional(2000),
   ativo: booleano(),
 });
@@ -38,6 +39,7 @@ async function gravar(id: string | null, dados: z.infer<typeof schema>) {
     uf: dados.uf || null,
     cep: dados.cep || null,
     ehCondominio: dados.ehCondominio,
+    condominioId: dados.condominioId || null,
     observacoes: dados.observacoes || null,
     ativo: dados.ativo,
   };

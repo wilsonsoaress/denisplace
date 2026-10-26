@@ -21,16 +21,23 @@ export default async function ClientePage({
   const { id } = await params;
   const salvo = (await searchParams).salvo !== undefined;
 
-  const cliente = await prisma.cliente.findUnique({
-    where: { id },
-    include: {
-      contratos: {
-        include: { condominio: true },
-        orderBy: { inicio: 'desc' },
+  const [cliente, condominios] = await Promise.all([
+    prisma.cliente.findUnique({
+      where: { id },
+      include: {
+        contratos: {
+          include: { condominio: true },
+          orderBy: { inicio: 'desc' },
+        },
+        condominios: true,
+        condominio: true,
       },
-      condominios: true,
-    },
-  });
+    }),
+    prisma.condominio.findMany({
+      select: { id: true, nome: true, cidade: true },
+      orderBy: [{ cidade: 'asc' }, { nome: 'asc' }],
+    }),
+  ]);
   if (!cliente) notFound();
 
   return (
@@ -51,7 +58,7 @@ export default async function ClientePage({
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="card">
-          <FormCliente acao={salvarCliente.bind(null, cliente.id)} registro={cliente} />
+          <FormCliente acao={salvarCliente.bind(null, cliente.id)} registro={cliente} condominios={condominios} />
         </div>
         <div className="space-y-4">
           <div className="card">
@@ -77,6 +84,21 @@ export default async function ClientePage({
             <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
               Condomínios vinculados
             </h2>
+            <p className="mb-2 text-sm">
+              {cliente.condominio ? (
+                <>
+                  Pertence ao condomínio{' '}
+                  <Link
+                    href={`/cadastros/condominios/${cliente.condominio.id}`}
+                    className="text-blue-800 hover:underline"
+                  >
+                    {cliente.condominio.nome}
+                  </Link>
+                </>
+              ) : (
+                <span className="text-slate-500">Sem vínculo de morador marcado no cadastro.</span>
+              )}
+            </p>
             {cliente.condominios.length === 0 ? (
               <p className="text-sm text-slate-500">Nenhum.</p>
             ) : (

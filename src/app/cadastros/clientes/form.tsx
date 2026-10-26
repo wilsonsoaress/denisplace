@@ -5,9 +5,12 @@ import { Area, Campo, Check, Escolha, Formulario, Texto, type EstadoForm } from 
 export function FormCliente({
   acao,
   registro,
+  condominios = [],
 }: {
   acao: (prev: EstadoForm, fd: FormData) => Promise<EstadoForm>;
   registro?: Cliente;
+  /** Condomínios que o cliente pode ter como vínculo de morador. */
+  condominios?: { id: string; nome: string; cidade: string | null }[];
 }) {
   return (
     <Formulario acao={acao} textoSubmit={registro ? 'Salvar alterações' : 'Cadastrar cliente'}>
@@ -29,6 +32,20 @@ export function FormCliente({
         </Campo>
         <Campo nome="nome" rotulo="Nome / razão social" obrigatorio>
           <Texto nome="nome" valor={registro?.nome} obrigatorio />
+        </Campo>
+        <Campo
+          nome="condominioId"
+          rotulo="Pertence ao condomínio"
+          dica="Morador cliente: o condomínio a que ele pertence, mesmo quando quem contrata é o síndico."
+        >
+          <Escolha
+            nome="condominioId"
+            valor={registro?.condominioId ?? undefined}
+            opcoes={[
+              { value: '', label: '— nenhum vínculo —' },
+              ...condominios.map((c) => ({ value: c.id, label: c.cidade ? `${c.nome} · ${c.cidade}` : c.nome })),
+            ]}
+          />
         </Campo>
         <Campo nome="cidade" rotulo="Cidade">
           <Texto nome="cidade" valor={registro?.cidade ?? undefined} />
