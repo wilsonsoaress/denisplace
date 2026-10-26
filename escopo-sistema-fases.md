@@ -183,14 +183,14 @@ Premissa: **1 dev full-stack + 1 dev front half-time**, com especificação apro
 
 ## 8. Decisões pendentes antes do kickoff
 
-| # | Pergunta | Por que trava |
-|---|---|---|
-| 1 | Quem emite o boleto hoje e em quantos bancos? | Define se o lote precisa separar por conta e se a F3 de conciliação sobe de prioridade |
-| 2 | A NF é emitida por contrato, por título ou por competência do condomínio? | Muda a granularidade do flag `nf_emitida` |
-| 3 | Existe convênio/isenção hoje? Quantos casos? | Afeta o cálculo de adimplência exibido ao síndico |
-| 4 | Reajuste é anual no aniversário do contrato ou em data fixa da categoria? | Define a regra do item e o job mensal |
-| 5 | Morador é cliente do contrato ou só unidade aderente? | Se emite NF para o morador, ele precisa de CPF e cadastro próprio |
-| 6 | Quantos contratos e unidades hoje? | Dimensiona a importação e o teste de carga do job de cobrança |
+| # | Pergunta | Por que trava | Resposta |
+|---|---|---|---|
+| 1 | Quem emite o boleto hoje e em quantos bancos? | Define se o lote precisa separar por conta e se a F3 de conciliação sobe de prioridade | **Um prestador (CNPJ), em um único banco.** O lote não precisa separar por conta, e a conciliação da F3 continua de baixa prioridade: não há arquivo de banco a cruzar, e o `nosso_numero` volta do prestador e é registrado à mão |
+| 2 | A NF é emitida por contrato, por título ou por competência do condomínio? | Muda a granularidade do flag `nf_emitida` | **Por contrato.** Como cada contrato gera exatamente 1 título por competência, o flag no título já é "por contrato na competência". Pendente confirmar: se for uma NF só para várias competências, o flag muda de granularidade |
+| 3 | Existe convênio/isenção hoje? Quantos casos? | Afeta o cálculo de adimplência exibido ao síndico | **Não tem convênio, zero casos.** A isenção continua no modelo (regra do §3.2 e o flag já existem) mas não entra em uso: o KPI de receita isenta do dashboard fica em R$ 0,00 e o denominador da adimplência nunca é reduzido por convênio |
+| 4 | Reajuste é anual no aniversário do contrato ou em data fixa da categoria? | Define a regra do item e o job mensal | **Anual, com a opção no cadastro.** Já existe: `periodicidade` (ANUAL/SEMESTRAL/NENHUM) por item e `proximo_reajuste_em` derivado da vigência. Falta só expor a data fixa da categoria, se ele quiser |
+| 5 | Morador é cliente do contrato ou só unidade aderente? | Se emite NF para o morador, ele precisa de CPF e cadastro próprio | **Os dois casos existem**, e o condomínio às vezes é o contratante (CNPJ). O modelo já cobre: `contrato_unidades.morador_id → clientes`, e o contrato pode ter cliente PF (morador) ou PJ (condomínio). Pendente: o título mostra a *unidade* como devedor e não carrega o documento do morador, que a NF precisaria |
+| 6 | Quantos contratos e unidades hoje? | Dimensiona a importação e o teste de carga do job de cobrança | **~10 contratos.** Volume pequeno: ~10 títulos por competência, ~120 por ano. O teste de carga do job perde sentido e a importação é rápida de homologar |
 
 ---
 
