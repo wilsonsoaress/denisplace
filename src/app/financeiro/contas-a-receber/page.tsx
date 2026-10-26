@@ -4,8 +4,8 @@ import { prisma } from '@/server/db';
 import { brl, D, type Money } from '@/domain/money';
 import { SITUACAO_LABEL } from '@/domain/cobranca';
 import { FORMA_PAGAMENTO } from '@/lib/rotulos';
-import { hoje } from '@/domain/dates';
-import { aplicarLoteDaGrade } from '@/server/acoes/contas';
+import { competencia, hoje } from '@/domain/dates';
+import { aplicarLoteDaGrade, gerarCobrancaDaCompetencia } from '@/server/acoes/contas';
 import { Cabecalho, Filtro, Vazio } from '@/ui/pagina';
 import { Campo, Escolha, Formulario, Texto } from '@/ui/form';
 import { CHIP_SITUACAO, type Linha } from '@/server/relatorios/titulos';
@@ -14,10 +14,12 @@ import { SelecionarTudo } from './selecionar-tudo';
 
 export const metadata = { title: 'Contas a receber' };
 
+// O boleto e a NF saem fora do sistema (o boleto, pelo prestador que emite por
+// um banco só): o clique registra o que aconteceu, nao dispara a emissao.
 const TIPOS_LOTE = [
-  { value: 'BOLETO', label: 'Emitir boleto' },
-  { value: 'NF', label: 'Emitir NF' },
-  { value: 'SEGUNDA_VIA', label: 'Dar 2ª via' },
+  { value: 'BOLETO', label: 'Marcar boleto emitido' },
+  { value: 'NF', label: 'Marcar NF emitida' },
+  { value: 'SEGUNDA_VIA', label: 'Marcar 2ª via' },
 ] as const;
 
 const OPCOES_FORMA = Object.entries(FORMA_PAGAMENTO).map(([value, label]) => ({ value, label }));
@@ -129,13 +131,40 @@ export default async function ContasReceberPage({
         </p>
       </div>
 
+      {editar ? (
+        <div className="card mb-4">
+          <Formulario
+            acao={gerarCobrancaDaCompetencia}
+            submit={
+              <>
+                <div className="max-w-40">
+                  <Campo
+                    nome="competencia"
+                    rotulo="Competência"
+                    obrigatorio
+                    dica="Use qualquer dia do mês."
+                  >
+                    <Texto nome="competencia" tipo="date" valor={filtros.comp || competencia(hoje())} obrigatorio />
+                  </Campo>
+                </div>
+                <button type="submit" className="btn btn-primary self-end">
+                  Gerar cobrança do mês
+                </button>
+              </>
+            }
+          >
+            <p className="text-sm text-slate-600">
+              Geração da competência: um disparo cria a fatura e o título de <b>todos os contratos vigentes</b> no mês.
+              Idempotente — reprocessar não duplica cobrança.
+            </p>
+          </Formulario>
+        </div>
+      ) : null}
+
       {linhas.length === 0 ? (
         <Vazio>
-          Nenhum título com esses filtros. A cobrança mensal é gerada na tela do contrato (ou pelo job) — veja
-          <Link href="/contratos" className="ml-1 text-blue-800 underline">
-            Contratos
-          </Link>
-          .
+          Nenhum título com esses filtros. Use <b>Gerar cobrança do mês</b> acima para criar as cobranças da
+          competência, ou marque as linhas abaixo e registre a emissão.
         </Vazio>
       ) : (
         <Formulario
@@ -144,7 +173,8 @@ export default async function ContasReceberPage({
             editar ? (
               <>
                 <span className="text-xs text-slate-500">
-                  Selecione as linhas e registre a emissão. Cada registro vira um lote auditável.
+                  Selecione as linhas e registre a emissão feita pelo prestador (boleto) ou pela empresa (NF). Cada
+                  registro vira um lote auditável; o nosso número você anota na tela do título.
                 </span>
                 {TIPOS_LOTE.map((t) => (
                   <button key={t.value} type="submit" name="tipo" value={t.value} className="btn">

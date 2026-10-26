@@ -10,6 +10,7 @@ import { competencia, hoje, toDate, toISO, type Competencia, type DateISO } from
 import { devidoNaData, estadoQuitacao, type PagamentoResumo } from '@/domain/cobranca';
 import { FORMA_PAGAMENTO, TIPO_EMISSAO } from '@/lib/rotulos';
 import { prisma } from '../db';
+import { gerarCobranca } from '../cobranca/gerar';
 import { colunaDuplicada } from '../erros';
 import { registrarAuditoria } from '../auditoria';
 import { autorizar } from '@/auth/guard';
@@ -455,6 +456,55 @@ export async function registrarPagamentoEmLote(_prev: EstadoForm, fd: FormData):
  */
 export async function aplicarLoteDaGrade(prev: EstadoForm, fd: FormData): Promise<EstadoForm> {
   return fd.get('tipo') === 'PAGAMENTO' ? registrarPagamentoEmLote(prev, fd) : marcarEmitido(prev, fd);
+}
+
+const schemaGeracao = z.object({ competencia: dataISO('Competência') });
+
+/**
+ * Gera a competencia inteira num disparo, sobre todos os contratos vigentes.
+ * O job mensal ja faz isso, mas ele roda na data do calendario: aqui o
+ * financeiro antecipa ou reprocessa um mes e ve o resultado na grade.
+ * Idempotente por (contrato, competencia), entao repetir nao duplica cobranca.
+ */
+export async function gerarCobrancaDaCompetencia(_prev: EstadoForm, fd: FormData): Promise<EstadoForm> {
+  const acesso = await autorizar('financeiro');
+  if (!('usuario' in acesso)) return acesso;
+
+  const resultado = validar(schemaGeracao, fd);
+  if (!resultado.ok) return { erros: resultado.erros };
+
+  const comp = competencia(resultado.dados.competencia) as Competencia;
+  const saida = await gerarCobranca(comp);
+
+  await registrarAuditoria(acesso.usuario, {
+    acao: 'cobranca.gerar',
+    entidade: 'competencia',
+    entidadeId: comp,
+    resumo: `geração em lote da competência ${comp.slice(0, 7)}: ${saida.criadas} fatura(s), ${saida.jaExistiam} já existente(s), ${saida.puladas.length} pulada(s)${
+      saida.puladas.length > 0 ? ` (${saida.puladas.map((p) => `#${p.contrato}: ${p.motivo}`).join('; ')})` : ''
+    }`,
+  });
+
+  revalidatePath('/financeiro/contas-a-receber');
+  revalidatePath('/financeiro/dashboard');
+  revalidatePath('/financeiro/matriz');
+
+  if (saida.criadas === 0) {
+    if (saida.jaExistiam > 0) {
+      return { mensagem: `Nada a gerar: as ${saida.jaExistiam} fatura(s) de ${comp.slice(0, 7)} já existem.${saida.puladas.length > 0 ? ` ${saida.puladas.length} contrato(s) pulado(s).` : ''}` };
+    }
+    const motivos = [...new Set(saida.puladas.map((p) => p.motivo))].join(' / ');
+    return {
+      erros: {
+        competencia: `Nenhuma cobrança gerada em ${comp.slice(0, 7)}${saida.puladas.length > 0 ? `: ${saida.puladas.length} contrato(s) fora do corte (${motivos})` : ': nenhum contrato vigente neste mês'}${saida.puladas.length > 0 ? '. Verifique a vigência na tela do contrato.' : '.'}`,
+      },
+    };
+  }
+  return {
+    mensagem: `Competência ${comp.slice(0, 7)}: ${saida.criadas} fatura(s) e título(s) gerados${
+      saida.jaExistiam > 0 ? `, ${saida.jaExistiam} já existia(m)` : ''
+    }${saida.puladas.length > 0 ? `, ${saida.puladas.length} contrato(s) pulado(s)` : ''}.`,
+  };
 }
 
 /**
