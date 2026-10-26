@@ -70,7 +70,7 @@ async function recarregar(tituloId: string): Promise<TituloCarregado | null> {
   return prisma.titulo.findUnique({ where: { id: tituloId }, include: { pagamentos: true } });
 }
 
-const FORMAS = ['PIX', 'DINHEIRO', 'TRANSFERENCIA', 'CHEQUE', 'CARTAO', 'OUTRO'] as const;
+const FORMAS = ['PIX', 'DINHEIRO', 'TRANSFERENCIA', 'CHEQUE', 'CARTAO', 'BOLETO', 'OUTRO'] as const;
 
 const schemaPagamento = z.object({
   data: dataISO('Data do pagamento'),

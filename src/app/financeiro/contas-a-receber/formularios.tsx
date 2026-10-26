@@ -6,7 +6,7 @@ import { paraCampo } from '@/lib/form';
 import { Campo, Escolha, Formulario, Texto } from '@/ui/form';
 import { desmarcarEmitido, estornarPagamento, marcarEmitido, marcarIsento, registrarPagamento } from '@/server/acoes/contas';
 
-const FORMAS = ['PIX', 'DINHEIRO', 'TRANSFERENCIA', 'CHEQUE', 'CARTAO', 'OUTRO'] as const;
+const FORMAS = ['PIX', 'DINHEIRO', 'TRANSFERENCIA', 'CHEQUE', 'CARTAO', 'BOLETO', 'OUTRO'] as const;
 const TIPOS = ['BOLETO', 'NF', 'SEGUNDA_VIA'] as const;
 
 export function FormPagamento({

@@ -6,7 +6,7 @@ const TIPO_PESSOA = ['PF', 'PJ'] as const;
 const ESCOPO = ['CONDOMINIO', 'UNIDADE'] as const;
 const STATUS_CONTRATO = ['RASCUNHO', 'VIGENTE', 'SUSPENSO', 'DISTRATADO', 'VENCIDO'] as const;
 const PERIODICIDADE = ['ANUAL', 'SEMESTRAL', 'NENHUM'] as const;
-const FORMAS = ['PIX', 'DINHEIRO', 'TRANSFERENCIA', 'CHEQUE', 'CARTAO', 'OUTRO'] as const;
+const FORMAS = ['PIX', 'DINHEIRO', 'TRANSFERENCIA', 'CHEQUE', 'CARTAO', 'BOLETO', 'OUTRO'] as const;
 
 /** Como a planilha escrita à mão chama cada enum, além da sigla do sistema. */
 const SINONIMOS_TIPO: Record<string, 'PF' | 'PJ'> = { pessoa_fisica: 'PF', pessoa_juridica: 'PJ' };
@@ -24,6 +24,7 @@ const SINONIMOS_FORMA: Record<string, (typeof FORMAS)[number]> = {
   doc: 'TRANSFERENCIA',
   cheque: 'CHEQUE',
   cartao: 'CARTAO',
+  boleto_bancario: 'BOLETO',
 };
 
 export type LinhaContrato = {

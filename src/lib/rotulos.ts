@@ -69,6 +69,7 @@ export const FORMA_PAGAMENTO: Record<FormaPagamento, string> = {
   TRANSFERENCIA: 'Transferência',
   CHEQUE: 'Cheque',
   CARTAO: 'Cartão',
+  BOLETO: 'Boleto',
   OUTRO: 'Outro',
 };
 export const STATUS_FATURA: Record<StatusFatura, string> = { ABERTA: 'Aberta', CANCELADA: 'Cancelada' };
