@@ -1,4 +1,5 @@
 import type {
+  CategoriaContaPagar,
   EscopoCobranca,
   EscopoItem,
   FormaPagamento,
@@ -99,6 +100,15 @@ export const TIPO_EMISSAO: Record<TipoEmissao, string> = {
   BOLETO: 'Boleto',
   NF: 'Nota fiscal',
   SEGUNDA_VIA: 'Segunda via',
+};
+export const CATEGORIA_CONTA_PAGAR: Record<CategoriaContaPagar, string> = {
+  EQUIPAMENTO: 'Equipamento',
+  INSTALACAO: 'Instalação',
+  MANUTENCAO: 'Manutenção',
+  COMISSAO: 'Comissão',
+  FRETE: 'Frete',
+  TAXA: 'Taxa',
+  OUTRO: 'Outro',
 };
 
 export function opcoes<T extends string>(map: Record<T, string>): { value: T; label: string }[] {

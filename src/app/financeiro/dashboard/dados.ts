@@ -4,6 +4,7 @@ import { D, sum, type Money } from '@/domain/money';
 import { addMonths, competencia, competenciasEntre, fimDaCompetencia, hoje, type Competencia } from '@/domain/dates';
 import { adimplenciaPorValor } from '@/domain/cobranca';
 import { titulosDoPeriodo, type Linha } from '@/server/relatorios/titulos';
+import { contasPagarDoPeriodo } from '@/server/relatorios/contasPagar';
 
 /**
  * Numeros do dashboard financeiro. Tudo sai das mesmas `Linha` da grade de contas
@@ -76,6 +77,7 @@ export type ResumoDashboard = {
   barras: Barra[];
   devedores: DevedorEmAtraso[];
   composicao: ItemComposicao[];
+  custo: { total: Money; pago: Money; emAberto: Money; lancamentos: number; margem: Money };
 };
 
 const soma = (linhas: Linha[], campo: (l: Linha) => Money | null) =>
@@ -189,6 +191,14 @@ export async function resumoDoPeriodo(f: FiltrosDashboard): Promise<ResumoDashbo
   const semBoleto = cobrancas.filter((l) => !l.boletoGerado);
   const semNf = cobrancas.filter((l) => !l.nfEmitida);
 
+  // Contas a pagar do mesmo recorte: alimenta o painel reservado para a F2
+  // (recebido - custo direto). Sem contrato/escopo porque o lancamento a pagar
+  // nem sempre tem vinculo — o filtro aqui e so o periodo.
+  const lancamentosPagar = await contasPagarDoPeriodo({ de: f.de, ate: f.ate });
+  const custoTotal = sum(...lancamentosPagar.map((l) => l.valorOriginal));
+  const custoPago = sum(...lancamentosPagar.map((l) => l.pago));
+  const custoEmAberto = sum(...lancamentosPagar.filter((l) => l.situacao !== 'pago').map((l) => l.saldo));
+
   return {
     receitas: {
       recorrente: soma(cobrancas, (l) => l.valorOriginal),
@@ -215,5 +225,13 @@ export async function resumoDoPeriodo(f: FiltrosDashboard): Promise<ResumoDashbo
     barras,
     devedores: [...porDevedor.values()].sort((a, b) => b.saldo.comparedTo(a.saldo)).slice(0, 8),
     composicao: await composicaoDoPeriodo(f),
+    custo: {
+      total: custoTotal,
+      pago: custoPago,
+      emAberto: custoEmAberto,
+      lancamentos: lancamentosPagar.length,
+      // Margem bruta do recorte: recebido do contas a receber menos o custo lancado no contas a pagar.
+      margem: sum(recebido).minus(custoTotal),
+    },
   };
 }

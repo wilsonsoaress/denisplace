@@ -126,6 +126,7 @@ export default async function DashboardPage({
     const q = new URLSearchParams(params);
     return `/financeiro/contas-a-receber?${q.toString()}`;
   };
+  const paraGrade2 = '/financeiro/contas-a-pagar';
 
   return (
     <>
@@ -311,11 +312,21 @@ export default async function DashboardPage({
             </Painel>
 
             <Painel
-              titulo="Contas a pagar e margem por contrato"
-              nota="O lugar está reservado: na F2 o custo direto (equipamento, peças, horas) entra vinculado ao contrato e este painel passa a mostrar recebido − despesas do recorte."
+              titulo="Contas a pagar e margem do recorte"
+              nota="Custo direto lançado no mesmo período, por data de competência. Vínculo opcional ao contrato alimenta o resultado por contrato mais à frente na F2."
             >
               <LinhaValor rotulo="Recebido no recorte" valor={brl(r.receitas.recebido)} />
-              <LinhaValor rotulo="Custo direto do recorte" valor={<span className="text-slate-400">chega com a F2</span>} />
+              <LinhaValor
+                href={paraGrade2}
+                rotulo={<>Custo direto <span className="text-xs text-slate-500">· {r.custo.lancamentos} lançamento(s)</span></>}
+                valor={brl(r.custo.total)}
+              />
+              <LinhaValor rotulo="Custo já pago" valor={brl(r.custo.pago)} />
+              <LinhaValor rotulo="Custo em aberto" valor={<span className={r.custo.emAberto.isZero() ? '' : 'text-red-700'}>{brl(r.custo.emAberto)}</span>} />
+              <LinhaValor
+                rotulo={<b>Margem bruta do recorte</b>}
+                valor={<b className={r.custo.margem.isNegative() ? 'text-red-700' : 'text-green-700'}>{brl(r.custo.margem)}</b>}
+              />
             </Painel>
           </div>
         </>

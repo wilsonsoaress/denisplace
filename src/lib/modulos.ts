@@ -48,6 +48,14 @@ export const MODULOS: Entrada[] = [
     pronto: true,
   },
   {
+    href: '/financeiro/contas-a-pagar',
+    nome: 'Contas a pagar',
+    curto: 'Contas a pagar',
+    desc: 'Lançamento pontual ou recorrente, NF de entrada, pago + data (F2)',
+    modulo: 'financeiro',
+    pronto: true,
+  },
+  {
     href: '/financeiro/matriz',
     nome: 'Matriz de inadimplência',
     curto: 'Matriz',
