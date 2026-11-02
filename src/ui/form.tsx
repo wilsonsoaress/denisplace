@@ -124,12 +124,15 @@ export function Texto({
   tipo = 'text',
   placeholder,
   obrigatorio,
+  aoSair,
 }: {
   nome: string;
   valor?: string;
   tipo?: string;
   placeholder?: string;
   obrigatorio?: boolean;
+  /** onBlur: usado pela busca de CEP, que completa o endereço ao sair do campo. */
+  aoSair?: (evento: React.FocusEvent<HTMLInputElement>) => void;
 }) {
   return (
     <input
@@ -138,6 +141,7 @@ export function Texto({
       defaultValue={valor}
       placeholder={placeholder}
       required={obrigatorio}
+      onBlur={aoSair}
       className="input"
     />
   );

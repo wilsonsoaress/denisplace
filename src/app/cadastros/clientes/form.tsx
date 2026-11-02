@@ -1,6 +1,7 @@
 import type { Cliente } from '@prisma/client';
 import { TIPO_PESSOA, opcoes } from '@/lib/rotulos';
 import { Area, Campo, Check, Escolha, Formulario, Texto, type EstadoForm } from '@/ui/form';
+import { SecaoEndereco } from '@/ui/endereco';
 
 export function FormCliente({
   acao,
@@ -47,27 +48,33 @@ export function FormCliente({
             ]}
           />
         </Campo>
-        <Campo nome="cidade" rotulo="Cidade">
-          <Texto nome="cidade" valor={registro?.cidade ?? undefined} />
-        </Campo>
         <Campo nome="email" rotulo="E-mail">
           <Texto nome="email" tipo="email" valor={registro?.email ?? undefined} />
         </Campo>
-        <Campo nome="telefone" rotulo="Telefone">
-          <Texto nome="telefone" valor={registro?.telefone ?? undefined} />
-        </Campo>
-        <Campo nome="endereco" rotulo="Endereço">
-          <Texto nome="endereco" valor={registro?.endereco ?? undefined} />
-        </Campo>
-        <div className="grid grid-cols-2 gap-4">
-          <Campo nome="uf" rotulo="UF">
-            <Texto nome="uf" valor={registro?.uf ?? undefined} />
+        <div>
+          <Campo nome="telefone" rotulo="Telefone">
+            <Texto nome="telefone" valor={registro?.telefone ?? undefined} />
           </Campo>
-          <Campo nome="cep" rotulo="CEP">
-            <Texto nome="cep" valor={registro?.cep ?? undefined} />
-          </Campo>
+          <div className="mt-2">
+            <Check
+              nome="telefoneWhatsapp"
+              rotulo="Este telefone é WhatsApp"
+              valor={registro?.telefoneWhatsapp ?? false}
+            />
+          </div>
         </div>
       </div>
+
+      <h2 className="pt-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Endereço</h2>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <SecaoEndereco
+          cep={registro?.cep ?? undefined}
+          endereco={registro?.endereco ?? undefined}
+          cidade={registro?.cidade ?? undefined}
+          uf={registro?.uf ?? undefined}
+        />
+      </div>
+
       <Campo nome="observacoes" rotulo="Observações">
         <Area nome="observacoes" valor={registro?.observacoes ?? undefined} />
       </Campo>

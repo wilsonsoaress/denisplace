@@ -1,5 +1,6 @@
 import type { Cliente, Condominio } from '@prisma/client';
 import { Campo, Escolha, Formulario, Texto, type EstadoForm } from '@/ui/form';
+import { SecaoEndereco } from '@/ui/endereco';
 
 export function FormCondominio({
   acao,
@@ -16,21 +17,21 @@ export function FormCondominio({
         <Campo nome="nome" rotulo="Nome do condomínio" obrigatorio>
           <Texto nome="nome" valor={registro?.nome} obrigatorio />
         </Campo>
-        <Campo nome="cidade" rotulo="Cidade" obrigatorio dica="Nome + cidade identificam o condomínio.">
-          <Texto nome="cidade" valor={registro?.cidade ?? undefined} />
-        </Campo>
         <Campo nome="cnpj" rotulo="CNPJ">
           <Texto nome="cnpj" valor={registro?.cnpj ?? undefined} placeholder="00.000.000/0000-00" />
         </Campo>
-        <Campo nome="endereco" rotulo="Endereço">
-          <Texto nome="endereco" valor={registro?.endereco ?? undefined} />
-        </Campo>
-        <Campo nome="uf" rotulo="UF">
-          <Texto nome="uf" valor={registro?.uf ?? undefined} />
-        </Campo>
-        <Campo nome="cep" rotulo="CEP">
-          <Texto nome="cep" valor={registro?.cep ?? undefined} />
-        </Campo>
+      </div>
+
+      <h2 className="pt-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Endereço</h2>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <SecaoEndereco
+          cep={registro?.cep ?? undefined}
+          endereco={registro?.endereco ?? undefined}
+          cidade={registro?.cidade ?? undefined}
+          uf={registro?.uf ?? undefined}
+          cidadeObrigatoria
+          cidadeDica="Nome + cidade identificam o condomínio."
+        />
       </div>
 
       <h2 className="pt-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Contatos</h2>

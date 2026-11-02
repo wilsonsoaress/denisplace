@@ -89,7 +89,26 @@ export default async function ClientesPage({
                   <td className="num">{c.documento ?? '—'}</td>
                   <td>{c.cidade ?? '—'}</td>
                   <td className="text-xs text-slate-600">
-                    {[c.telefone, c.email].filter(Boolean).join(' · ') || '—'}
+                    {c.telefone ? (
+                      <>
+                        {c.telefoneWhatsapp ? (
+                          <a
+                            href={`https://wa.me/55${c.telefone.replace(/\D/g, '')}`}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            className="text-green-700 hover:underline"
+                            title="Abrir no WhatsApp"
+                          >
+                            {c.telefone} (WhatsApp)
+                          </a>
+                        ) : (
+                          c.telefone
+                        )}
+                        {c.email ? ` · ${c.email}` : ''}
+                      </>
+                    ) : (
+                      c.email || '—'
+                    )}
                   </td>
                   <td className="num">{c._count.contratos}</td>
                   <td>

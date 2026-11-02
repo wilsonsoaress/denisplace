@@ -78,24 +78,26 @@ enum TipoPessoa {
 }
 
 model Cliente {
-  id           String     @id @default(cuid())
-  tipo         TipoPessoa
-  nome         String
-  documento    String?    @unique
-  email        String?
-  telefone     String?
-  endereco     String?
-  cidade       String?
-  uf           String?
-  cep          String?
+  id               String     @id @default(cuid())
+  tipo             TipoPessoa
+  nome             String
+  documento        String?    @unique
+  email            String?
+  telefone         String?
+  /// Liga o botao de WhatsApp na lista e na ficha do cliente — nem todo telefone cadastrado e WhatsApp.
+  telefoneWhatsapp Boolean    @default(false) @map("phone_is_whatsapp")
+  endereco         String?
+  cidade           String?
+  uf               String?
+  cep              String?
   /// Condominio pode ser cliente e tambem pode ter clientes vinculados a ele.
-  ehCondominio Boolean    @default(false) @map("is_condominium")
+  ehCondominio     Boolean    @default(false) @map("is_condominium")
   /// Morador cadastrado como cliente: o condominio a que ele pertence, mesmo sem contrato proprio.
-  condominioId String?
-  observacoes  String?
-  ativo        Boolean    @default(true)
-  criadoEm     DateTime   @default(now()) @map("created_at")
-  atualizadoEm DateTime   @updatedAt @map("updated_at")
+  condominioId     String?
+  observacoes      String?
+  ativo            Boolean    @default(true)
+  criadoEm         DateTime   @default(now()) @map("created_at")
+  atualizadoEm     DateTime   @updatedAt @map("updated_at")
 
   contratos       Contrato[]
   condominios     Condominio[]      @relation("CondominioCliente")
