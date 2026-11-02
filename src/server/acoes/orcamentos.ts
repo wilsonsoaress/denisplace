@@ -12,6 +12,9 @@ import { prisma } from '../db';
 import { autorizar } from '@/auth/guard';
 import { registrarAuditoria } from '../auditoria';
 import { colunaDuplicada } from '../erros';
+import { obterDadosEmpresa } from './empresa';
+import { gerarPdfOrcamento, type OrcamentoParaPdf } from '../pdf/orcamento';
+import { enviarEmailComAnexo } from '../email/resend';
 
 /**
  * O orcamento e a unica entrada de negocio: ao converter, item PONTUAL vira OS e
@@ -335,4 +338,85 @@ export async function converter(id: string, _prev: EstadoForm, fd: FormData): Pr
   ];
   // O painel do formulário some quando o status muda: sem redirect a pessoa não veria o resultado.
   redirect(`/orcamentos/${id}?convertido=1&resumo=${encodeURIComponent(partes.join(' e '))}`);
+}
+
+const schemaEmail = z.object({
+  destinatario: z
+    .string({ required_error: 'Informe o e-mail do destinatário.' })
+    .min(1, 'Informe o e-mail do destinatário.')
+    .email('E-mail inválido.'),
+  mensagem: opcional(2000),
+});
+
+/**
+ * Gera o mesmo PDF da rota /pdf e manda por e-mail com o Resend. Ao enviar com
+ * sucesso, o orçamento aberto passa para "enviado" — igual ao botão manual,
+ * só que aqui o envio aconteceu de verdade, não é só um flag.
+ */
+export async function enviarOrcamentoPorEmail(id: string, _prev: EstadoForm, fd: FormData): Promise<EstadoForm> {
+  const acesso = await autorizar('orcamentos');
+  if (!('usuario' in acesso)) return acesso;
+
+  const resultado = validar(schemaEmail, fd);
+  if (!resultado.ok) return { erros: resultado.erros };
+  const d = resultado.dados;
+  if (!d.destinatario) return { erros: { destinatario: 'Informe o e-mail do destinatário.' } };
+
+  const orcamento = await prisma.orcamento.findUnique({
+    where: { id },
+    include: {
+      cliente: { select: { nome: true, documento: true, email: true, telefone: true } },
+      condominio: { select: { nome: true } },
+      itens: { include: { catalogoItem: { select: { tipo: true } } }, orderBy: { id: 'asc' } },
+    },
+  });
+  if (!orcamento) return { erros: { _: 'Orçamento não encontrado.' } };
+  if (orcamento.itens.length === 0) {
+    return { erros: { _: 'Inclua ao menos um item antes de enviar o orçamento.' } };
+  }
+
+  const empresa = await obterDadosEmpresa();
+  const nomeEmpresa = empresa?.nomeFantasia || empresa?.nome || 'Denis Place';
+
+  try {
+    const buffer = await gerarPdfOrcamento({ orcamento: orcamento as OrcamentoParaPdf, empresa });
+
+    const corpo = [
+      `Olá, ${orcamento.cliente.nome}.`,
+      '',
+      `Segue em anexo o orçamento #${orcamento.numero} — ${orcamento.titulo}, válido até ${toISO(orcamento.validade)}.`,
+      d.mensagem ? '' : null,
+      d.mensagem || null,
+      '',
+      `Total previsto: ${brl(orcamento.valorTotal)}.`,
+      '',
+      nomeEmpresa,
+    ]
+      .filter((linha): linha is string => linha !== null)
+      .join('\n');
+
+    await enviarEmailComAnexo({
+      para: d.destinatario,
+      assunto: `Orçamento #${orcamento.numero} — ${orcamento.titulo}`,
+      corpoTexto: corpo,
+      anexoNome: `orcamento-${orcamento.numero}.pdf`,
+      anexoBuffer: buffer,
+      replyTo: empresa?.email ?? undefined,
+    });
+  } catch (erro) {
+    const mensagem = erro instanceof Error ? erro.message : 'Falha desconhecida ao enviar o e-mail.';
+    return { erros: { _: mensagem } };
+  }
+
+  if (orcamento.status === 'ABERTO') {
+    await prisma.orcamento.update({ where: { id }, data: { status: 'ENVIADO' } });
+  }
+  await registrarAuditoria(acesso.usuario, {
+    acao: 'orcamento.email',
+    entidade: 'orcamento',
+    entidadeId: id,
+    resumo: `PDF enviado para ${d.destinatario}${d.mensagem ? ' com mensagem' : ''}`,
+  });
+  revalidar(id);
+  return { mensagem: `Orçamento #${orcamento.numero} enviado por e-mail para ${d.destinatario}.` };
 }

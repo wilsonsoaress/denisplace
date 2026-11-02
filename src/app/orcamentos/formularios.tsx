@@ -131,3 +131,27 @@ export function FormConversao({
     </Formulario>
   );
 }
+
+export function FormEnviarEmail({
+  acao,
+  emailPadrao,
+}: {
+  acao: (prev: EstadoForm, fd: FormData) => Promise<EstadoForm>;
+  emailPadrao?: string | null;
+}) {
+  return (
+    <Formulario acao={acao} textoSubmit="Enviar por e-mail">
+      <Campo
+        nome="destinatario"
+        rotulo="E-mail do destinatário"
+        obrigatorio
+        dica={emailPadrao ? undefined : 'O cliente não tem e-mail cadastrado — preencha aqui.'}
+      >
+        <Texto nome="destinatario" tipo="email" valor={emailPadrao ?? undefined} obrigatorio />
+      </Campo>
+      <Campo nome="mensagem" rotulo="Mensagem (opcional)" dica="Entra no corpo do e-mail, antes do total.">
+        <Area nome="mensagem" linhas={3} />
+      </Campo>
+    </Formulario>
+  );
+}

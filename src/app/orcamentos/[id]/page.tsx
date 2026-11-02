@@ -3,14 +3,14 @@ import { exigirPagina, podeEditar } from '@/auth/guard';
 import { notFound } from 'next/navigation';
 import type { OrcamentoItem } from '@prisma/client';
 import { prisma } from '@/server/db';
-import { adicionarItem, converter, mudarStatus, removerItem, salvarOrcamento } from '@/server/acoes/orcamentos';
+import { adicionarItem, converter, enviarOrcamentoPorEmail, mudarStatus, removerItem, salvarOrcamento } from '@/server/acoes/orcamentos';
 import { D, brl, money } from '@/domain/money';
 import { hoje, toISO } from '@/domain/dates';
 import { ESCOPO_ITEM, PERIODICIDADE_REAJUSTE, STATUS_ORCAMENTO, STATUS_OS } from '@/lib/rotulos';
 import { Cabecalho, param } from '@/ui/pagina';
 import { listasParaContrato } from '@/app/contratos/dados';
 import { CHIP_ORCAMENTO } from '../dados';
-import { FormConversao, FormItemOrcamento, FormOrcamento } from '../formularios';
+import { FormConversao, FormEnviarEmail, FormItemOrcamento, FormOrcamento } from '../formularios';
 
 export const metadata = { title: 'Orçamento' };
 
@@ -46,7 +46,7 @@ export default async function OrcamentoPage({
   const orcamento = await prisma.orcamento.findUnique({
     where: { id },
     include: {
-      cliente: { select: { id: true, nome: true } },
+      cliente: { select: { id: true, nome: true, email: true } },
       condominio: { select: { id: true, nome: true, cidade: true } },
       itens: { include: { catalogoItem: { select: { id: true, tipo: true, indiceReajuste: { select: { sigla: true } } } } }, orderBy: { id: 'asc' } },
       contrato: { select: { id: true, numero: true, status: true } },
@@ -71,6 +71,9 @@ export default async function OrcamentoPage({
         acoes={
           <>
             <span className={CHIP_ORCAMENTO[orcamento.status]}>{STATUS_ORCAMENTO[orcamento.status]}</span>
+            <a href={`/orcamentos/${id}/pdf`} className="btn" target="_blank" rel="noreferrer noopener">
+              Baixar PDF
+            </a>
             {editavel && orcamento.status === 'ABERTO' ? (
               <BotaoStatus id={id} acao="enviar" rotulo="Marcar como enviado" />
             ) : null}
@@ -188,6 +191,17 @@ export default async function OrcamentoPage({
             <section className="card">
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Dados do orçamento</h2>
               <FormOrcamento acao={salvarOrcamento.bind(null, id)} registro={orcamento} listas={listas} />
+            </section>
+          ) : null}
+
+          {podeGravar && orcamento.itens.length > 0 ? (
+            <section className="card">
+              <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500">Enviar por e-mail</h2>
+              <p className="mb-3 text-xs text-slate-500">
+                Gera o PDF na hora e manda em anexo. Orçamento aberto passa para &quot;enviado&quot; quando o envio dá
+                certo.
+              </p>
+              <FormEnviarEmail acao={enviarOrcamentoPorEmail.bind(null, id)} emailPadrao={orcamento.cliente.email} />
             </section>
           ) : null}
 

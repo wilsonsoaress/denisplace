@@ -28,6 +28,11 @@ const MODULOS = [
     titulo: 'Índices de reajuste',
     descricao: 'IPCA, IGP-M e INPC por competência. Sem a série completa o reajuste não é calculado.',
   },
+  {
+    href: '/cadastros/empresa',
+    titulo: 'Dados da empresa',
+    descricao: 'Razão social, CNPJ, endereço e logo: aparecem no cabeçalho do PDF do orçamento e no e-mail de envio.',
+  },
 ];
 
 export default async function CadastrosPage() {

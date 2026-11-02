@@ -727,6 +727,32 @@ model PagamentoContaPagar {
   @@map("pagamentos_conta_pagar")
 }
 
+// ---------------------------------------------------------------------------
+// Dados da empresa (singleton): cabecalho do PDF do orcamento e remetente do e-mail.
+// ---------------------------------------------------------------------------
+
+model DadosEmpresa {
+  id                String   @id @default(cuid())
+  nome              String
+  nomeFantasia      String?
+  cnpj              String?
+  email             String?
+  telefone          String?
+  endereco          String?
+  cidade            String?
+  uf                String?
+  cep               String?
+  site              String?
+  /// URL publica do logo (ex: hospedado no proprio storage de comprovantes, S3 etc.)
+  logoUrl           String?
+  /// Texto livre no rodape do PDF: condicoes gerais, validade padrao, etc.
+  observacoesRodape String?
+  criadoEm          DateTime @default(now()) @map("created_at")
+  atualizadoEm      DateTime @updatedAt @map("updated_at")
+
+  @@map("dados_empresa")
+}
+
 enum StatusOS {
   ABERTA
   AGENDADA
