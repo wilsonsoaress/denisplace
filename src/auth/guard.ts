@@ -27,12 +27,19 @@ export async function sessaoAtual(): Promise<UsuarioSessao | null> {
 /**
  * Guarda de leitura. Toda pagina e server component, então a checagem acontece no
  * servidor de verdade: esconder o link no menu é cortesia, não segurança.
+ *
+ * Quando falta permissão para `inicio` (perfil zerado, ou sessão antiga sem o mapa
+ * de permissões ainda carregado), NÃO pode redirecionar para "/": a home também
+ * exige `inicio` e redirecionaria para si mesma de novo — loop infinito
+ * (ERR_TOO_MANY_REDIRECTS). Esse caso vai para uma página fixa, sem guarda nenhuma.
  */
 export async function exigirPagina(href: string): Promise<UsuarioSessao> {
   const usuario = await sessaoAtual();
   if (!usuario) redirect(`/login?depois=${encodeURIComponent(href)}`);
-  if (!pode(usuario.permissoes, moduloDeHref(href))) {
-    redirect(`/?semPermissao=${encodeURIComponent(moduloDeHref(href))}`);
+  const modulo = moduloDeHref(href);
+  if (!pode(usuario.permissoes, modulo)) {
+    if (modulo === 'inicio') redirect('/sem-acesso');
+    redirect(`/?semPermissao=${encodeURIComponent(modulo)}`);
   }
   return usuario;
 }
