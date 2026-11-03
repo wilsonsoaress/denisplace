@@ -8,7 +8,8 @@ export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
   const usuario = await exigirPagina('/');
-  let contagem: Record<string, number | string> | null = null;
+  let contagem: { clientes: number; condominios: number; contratos: number; titulos: number; emAberto: number } | null =
+    null;
   let erro: string | null = null;
 
   try {
@@ -28,29 +29,28 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-5">
-      <section className="card">
+      <div>
         <h1 className="text-lg font-semibold">Fase 1 — núcleo comercial e cobrança</h1>
         <p className="mt-1 text-sm text-slate-600">
           Objetivo da F1: rodar o mês inteiro no sistema e desligar a planilha. Sem integração bancária —
           boleto, NF e pagamento são fatos registrados por quem atende.
         </p>
-        <div className="mt-3 text-sm">
-          {contagem ? (
-            <ul className="flex flex-wrap gap-x-6 gap-y-1 num">
-              <li>Clientes: <b>{contagem.clientes}</b></li>
-              <li>Condomínios: <b>{contagem.condominios}</b></li>
-              <li>Contratos: <b>{contagem.contratos}</b></li>
-              <li>Títulos: <b>{contagem.titulos}</b></li>
-              <li>Em aberto: <b>{contagem.emAberto}</b></li>
-            </ul>
-          ) : (
-            <p className="text-amber-800">
-              Banco indisponível ({erro}). Suba com <code className="rounded bg-slate-100 px-1">docker compose up -d db redis</code>{' '}
-              e rode <code className="rounded bg-slate-100 px-1">npm run db:seed</code>.
-            </p>
-          )}
-        </div>
-      </section>
+      </div>
+
+      {contagem ? (
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <CartaoNumero rotulo="Clientes" valor={contagem.clientes} />
+          <CartaoNumero rotulo="Condomínios" valor={contagem.condominios} />
+          <CartaoNumero rotulo="Contratos" valor={contagem.contratos} />
+          <CartaoNumero rotulo="Títulos" valor={contagem.titulos} />
+          <CartaoNumero rotulo="Em aberto" valor={contagem.emAberto} destaque={Number(contagem.emAberto) > 0} />
+        </section>
+      ) : (
+        <p className="card text-sm text-amber-800">
+          Banco indisponível ({erro}). Suba com <code className="rounded bg-slate-100 px-1">docker compose up -d db redis</code>{' '}
+          e rode <code className="rounded bg-slate-100 px-1">npm run db:seed</code>.
+        </p>
+      )}
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {MODULOS.filter((m) => pode(usuario.permissoes, m.modulo)).map((m) => (
@@ -114,6 +114,25 @@ export default async function HomePage() {
           </table>
         </div>
       </section>
+    </div>
+  );
+}
+
+/** Cartão numérico simples: rótulo pequeno em cima, número grande embaixo. */
+function CartaoNumero({
+  rotulo,
+  valor,
+  destaque,
+}: {
+  rotulo: string;
+  valor: number | string;
+  /** "Em aberto" > 0 chama mais atenção do que uma contagem neutra. */
+  destaque?: boolean;
+}) {
+  return (
+    <div className="card">
+      <p className="field-label mb-0">{rotulo}</p>
+      <p className={`num mt-1 text-2xl font-semibold ${destaque ? 'text-amber-700' : 'text-slate-900'}`}>{valor}</p>
     </div>
   );
 }
