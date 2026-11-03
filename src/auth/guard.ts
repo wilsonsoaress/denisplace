@@ -1,9 +1,16 @@
 import { redirect } from 'next/navigation';
 import type { Papel } from '@prisma/client';
 import { auth } from '@/auth';
-import { moduloDeHref, pode, type Modulo } from './perfis';
+import { moduloDeHref, pode, type MapaPermissoes, type Modulo } from './perfis';
 
-export type UsuarioSessao = { id: string; nome: string; email: string; papel: Papel };
+export type UsuarioSessao = {
+  id: string;
+  nome: string;
+  email: string;
+  papel: Papel;
+  /** Resolvida no login a partir de `permissoes_perfil`; só atualiza na próxima sessão. */
+  permissoes: MapaPermissoes;
+};
 
 export async function sessaoAtual(): Promise<UsuarioSessao | null> {
   const session = await auth();
@@ -13,6 +20,7 @@ export async function sessaoAtual(): Promise<UsuarioSessao | null> {
     nome: session.user.name ?? '',
     email: session.user.email ?? '',
     papel: session.user.papel,
+    permissoes: session.user.permissoes,
   };
 }
 
@@ -23,7 +31,7 @@ export async function sessaoAtual(): Promise<UsuarioSessao | null> {
 export async function exigirPagina(href: string): Promise<UsuarioSessao> {
   const usuario = await sessaoAtual();
   if (!usuario) redirect(`/login?depois=${encodeURIComponent(href)}`);
-  if (!pode(usuario.papel, moduloDeHref(href))) {
+  if (!pode(usuario.permissoes, moduloDeHref(href))) {
     redirect(`/?semPermissao=${encodeURIComponent(moduloDeHref(href))}`);
   }
   return usuario;
@@ -39,7 +47,7 @@ export async function autorizar(
 ): Promise<{ usuario: UsuarioSessao } | { erros: { _: string } }> {
   const usuario = await sessaoAtual();
   if (!usuario) return { erros: { _: 'Sua sessão expirou. Entre novamente para gravar.' } };
-  if (!pode(usuario.papel, modulo, perno)) {
+  if (!pode(usuario.permissoes, modulo, perno)) {
     return {
       erros: {
         _: `O perfil ${usuario.papel.toLowerCase()} não tem permissão para ${
@@ -57,7 +65,7 @@ export async function autorizar(
  */
 export async function podeEditar(modulo: Modulo): Promise<boolean> {
   const usuario = await sessaoAtual();
-  return !!usuario && pode(usuario.papel, modulo, 'editar');
+  return !!usuario && pode(usuario.permissoes, modulo, 'editar');
 }
 
 /** Pedido de titular (LGPD) é caso de administrador: o mais alto perfil da matriz. */

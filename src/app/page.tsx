@@ -2,6 +2,7 @@ import { prisma } from '@/server/db';
 import { MODULOS } from '@/lib/modulos';
 import { exigirPagina } from '@/auth/guard';
 import { PAPEIS_LABEL, pode } from '@/auth/perfis';
+import { buscarMatrizCompleta } from '@/server/permissoes';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +23,8 @@ export default async function HomePage() {
   } catch (e) {
     erro = e instanceof Error ? e.message.split('\n')[0] ?? 'falha desconhecida' : 'falha desconhecida';
   }
+
+  const matriz = await buscarMatrizCompleta();
 
   return (
     <div className="space-y-5">
@@ -50,7 +53,7 @@ export default async function HomePage() {
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {MODULOS.filter((m) => pode(usuario.papel, m.modulo)).map((m) => (
+        {MODULOS.filter((m) => pode(usuario.permissoes, m.modulo)).map((m) => (
           <div key={m.href} className={`card ${m.pronto ? 'hover:border-brand hover:bg-blue-50/40' : 'opacity-70'}`}>
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               {m.pronto ? (
@@ -70,8 +73,17 @@ export default async function HomePage() {
       <section className="card">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">O que cada perfil altera</h2>
         <p className="mt-1 text-xs text-slate-600">
-          A regra mora em <code className="rounded bg-slate-100 px-1">src/auth/perfis.ts</code> e vale para página e
-          gravação: esconder o botão é cortesia, a recusa no servidor é a segurança.
+          {pode(usuario.permissoes, 'usuarios', 'editar') ? (
+            <>
+              Editável em{' '}
+              <a href="/usuarios/perfis" className="text-blue-800 hover:underline">
+                Usuários → Gerenciar perfis
+              </a>
+              . Esconder o botão é cortesia, a recusa no servidor é a segurança.
+            </>
+          ) : (
+            'Só o administrador edita esta matriz; a recusa no servidor é a segurança, esconder o botão é cortesia.'
+          )}
         </p>
         <div className="mt-3 overflow-x-auto">
           <table className="data text-sm">
@@ -89,9 +101,9 @@ export default async function HomePage() {
                   <td>{m.nome}</td>
                   {(Object.keys(PAPEIS_LABEL) as (keyof typeof PAPEIS_LABEL)[]).map((p) => (
                     <td key={p} className="text-xs text-slate-600">
-                      {pode(p, m.modulo, 'editar')
+                      {pode(matriz[p], m.modulo, 'editar')
                         ? 'altera'
-                        : pode(p, m.modulo)
+                        : pode(matriz[p], m.modulo)
                           ? 'somente leitura'
                           : 'sem acesso'}
                     </td>

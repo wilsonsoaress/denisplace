@@ -20,9 +20,14 @@ export default async function UsuariosPage() {
         titulo="Usuários"
         descricao="Contas de acesso ao sistema: quem entra, com qual perfil e se ainda pode logar. Só administrador mexe aqui."
         acoes={
-          <Link href="/usuarios/novo" className="btn btn-primary">
-            Novo usuário
-          </Link>
+          <>
+            <Link href="/usuarios/perfis" className="btn">
+              Gerenciar perfis
+            </Link>
+            <Link href="/usuarios/novo" className="btn btn-primary">
+              Novo usuário
+            </Link>
+          </>
         }
       />
 

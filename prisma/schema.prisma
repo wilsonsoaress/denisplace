@@ -753,6 +753,37 @@ model DadosEmpresa {
   @@map("dados_empresa")
 }
 
+// ---------------------------------------------------------------------------
+// Matriz de permissao por perfil: editavel pelo administrador em /usuarios/perfis.
+// Os 4 perfis (enum Papel) sao fixos; o que muda e o nivel de acesso por modulo.
+// ---------------------------------------------------------------------------
+
+enum ModuloSistema {
+  INICIO
+  CADASTROS
+  ORCAMENTOS
+  CONTRATOS
+  FINANCEIRO
+  AUDITORIA
+  USUARIOS
+}
+
+enum NivelAcesso {
+  NENHUM
+  VER
+  EDITAR
+}
+
+model PermissaoPerfil {
+  id     String        @id @default(cuid())
+  papel  Papel
+  modulo ModuloSistema
+  nivel  NivelAcesso
+
+  @@unique([papel, modulo])
+  @@map("permissoes_perfil")
+}
+
 enum StatusOS {
   ABERTA
   AGENDADA

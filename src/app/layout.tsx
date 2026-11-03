@@ -28,7 +28,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <Link href="/" className="rounded-md px-3 py-1.5 text-slate-600 hover:bg-slate-100">
                     Início
                   </Link>
-                  {MODULOS.filter((m) => m.pronto && pode(usuario.papel, m.modulo)).map((m) => (
+                  {MODULOS.filter((m) => m.pronto && pode(usuario.permissoes, m.modulo)).map((m) => (
                     <Link
                       key={m.href}
                       href={m.href}
