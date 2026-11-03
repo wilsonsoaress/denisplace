@@ -5,7 +5,7 @@ import type { Papel } from '@prisma/client';
  * "o que o perfil estraga se errar aqui": comercial erra no preco do orcamento,
  * financeiro erra na baixa de pagamento, tecnico nao toca dinheiro.
  */
-export type Modulo = 'inicio' | 'cadastros' | 'orcamentos' | 'contratos' | 'financeiro' | 'auditoria';
+export type Modulo = 'inicio' | 'cadastros' | 'orcamentos' | 'contratos' | 'financeiro' | 'auditoria' | 'usuarios';
 export type Perno = 'nenhum' | 'ver' | 'editar';
 
 const TUDO: Record<Modulo, Perno> = {
@@ -15,6 +15,7 @@ const TUDO: Record<Modulo, Perno> = {
   contratos: 'editar',
   financeiro: 'editar',
   auditoria: 'ver',
+  usuarios: 'editar',
 };
 
 const MATRIZ: Record<Papel, Record<Modulo, Perno>> = {
@@ -26,6 +27,7 @@ const MATRIZ: Record<Papel, Record<Modulo, Perno>> = {
     contratos: 'ver',
     financeiro: 'ver',
     auditoria: 'nenhum',
+    usuarios: 'nenhum',
   },
   FINANCEIRO: {
     inicio: 'ver',
@@ -34,6 +36,7 @@ const MATRIZ: Record<Papel, Record<Modulo, Perno>> = {
     contratos: 'editar',
     financeiro: 'editar',
     auditoria: 'ver',
+    usuarios: 'nenhum',
   },
   TECNICO: {
     inicio: 'ver',
@@ -42,6 +45,7 @@ const MATRIZ: Record<Papel, Record<Modulo, Perno>> = {
     contratos: 'ver',
     financeiro: 'nenhum',
     auditoria: 'nenhum',
+    usuarios: 'nenhum',
   },
 };
 
@@ -60,6 +64,7 @@ export function moduloDeHref(href: string): Modulo {
   if (primeiro === 'contratos') return 'contratos';
   if (primeiro === 'financeiro') return 'financeiro';
   if (primeiro === 'auditoria') return 'auditoria';
+  if (primeiro === 'usuarios') return 'usuarios';
   return 'inicio';
 }
 

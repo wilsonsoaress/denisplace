@@ -79,4 +79,12 @@ export const MODULOS: Entrada[] = [
     modulo: 'auditoria',
     pronto: true,
   },
+  {
+    href: '/usuarios',
+    nome: 'Usuários',
+    curto: 'Usuários',
+    desc: 'Contas de acesso: papel, ativar/desativar, redefinir senha (só administrador)',
+    modulo: 'usuarios',
+    pronto: true,
+  },
 ];
