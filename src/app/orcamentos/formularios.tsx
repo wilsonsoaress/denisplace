@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { Orcamento } from '@prisma/client';
 import { addDays, hoje, toISO } from '@/domain/dates';
 import { ESCOPO_COBRANCA, ESCOPO_ITEM, PERIODICIDADE_REAJUSTE, STATUS_CONTRATO, opcoes } from '@/lib/rotulos';
@@ -12,6 +13,11 @@ export type ListasOrcamento = {
   catalogo: Opcao[];
 };
 
+const TIPOS_PESSOA = [
+  { value: 'PF', label: 'Pessoa física' },
+  { value: 'PJ', label: 'Pessoa jurídica' },
+];
+
 export function FormOrcamento({
   acao,
   registro,
@@ -21,18 +27,74 @@ export function FormOrcamento({
   registro?: Orcamento;
   listas: ListasOrcamento;
 }) {
+  const [clienteNovo, setClienteNovo] = useState(false);
   const validade = registro ? undefined : addDays(hoje(), 15);
   return (
     <Formulario acao={acao} textoSubmit={registro ? 'Salvar orçamento' : 'Criar orçamento'}>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Campo nome="clienteId" rotulo="Cliente" obrigatorio>
-          <Escolha
-            nome="clienteId"
-            valor={registro?.clienteId}
-            opcoes={[{ value: '', label: '— escolher —' }, ...listas.clientes]}
-            obrigatorio
-          />
-        </Campo>
+        <div className="sm:col-span-2">
+          <span className="field-label">Cliente</span>
+          <div className="mt-1 flex flex-wrap gap-4 text-sm">
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="_modoCliente"
+                checked={!clienteNovo}
+                onChange={() => setClienteNovo(false)}
+                className="size-4"
+              />
+              Já cadastrado
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="_modoCliente"
+                checked={clienteNovo}
+                onChange={() => setClienteNovo(true)}
+                className="size-4"
+              />
+              Cadastrar cliente agora
+            </label>
+          </div>
+          <input type="hidden" name="clienteNovo" value={clienteNovo ? '1' : '0'} />
+        </div>
+
+        {!clienteNovo ? (
+          <Campo nome="clienteId" rotulo="Cliente" obrigatorio>
+            <Escolha
+              nome="clienteId"
+              valor={registro?.clienteId}
+              opcoes={[{ value: '', label: '— escolher —' }, ...listas.clientes]}
+              obrigatorio
+            />
+          </Campo>
+        ) : (
+          <>
+            <Campo nome="novoClienteTipo" rotulo="Tipo de pessoa" obrigatorio>
+              <Escolha nome="novoClienteTipo" valor="PF" opcoes={TIPOS_PESSOA} obrigatorio />
+            </Campo>
+            <Campo nome="novoClienteNome" rotulo="Nome / razão social" obrigatorio>
+              <Texto nome="novoClienteNome" obrigatorio placeholder="Nome de quem está pedindo o orçamento" />
+            </Campo>
+            <Campo
+              nome="novoClienteDocumento"
+              rotulo="CPF / CNPJ"
+              dica="Opcional agora; completa depois em Cadastros > Clientes."
+            >
+              <Texto nome="novoClienteDocumento" placeholder="000.000.000-00" />
+            </Campo>
+            <Campo nome="novoClienteEmail" rotulo="E-mail">
+              <Texto nome="novoClienteEmail" tipo="email" />
+            </Campo>
+            <Campo nome="novoClienteTelefone" rotulo="Telefone">
+              <Texto nome="novoClienteTelefone" />
+            </Campo>
+            <p className="self-end text-xs text-slate-500 sm:col-span-2">
+              Cria o cadastro completo em Clientes, só com menos campos agora — e já fica vinculado a este orçamento.
+            </p>
+          </>
+        )}
+
         <Campo nome="condominioId" rotulo="Condomínio" dica="Obrigatório na prática: é ele que aparece na matriz.">
           <Escolha
             nome="condominioId"

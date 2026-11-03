@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { dataISO, dataOpcional, decimalOpcional, enumDe, obrigatorio, opcional, validar } from '@/lib/form';
+import { dataISO, dataOpcional, decimalOpcional, documento, email, enumDe, obrigatorio, opcional, validar } from '@/lib/form';
 import type { EstadoForm } from '@/ui/form';
 import { D, brl, money, sum, type Money } from '@/domain/money';
 import { addMonths, competencia, hoje, toDate, toISO } from '@/domain/dates';
@@ -12,6 +12,7 @@ import { prisma } from '../db';
 import { autorizar } from '@/auth/guard';
 import { registrarAuditoria } from '../auditoria';
 import { colunaDuplicada } from '../erros';
+import { criarClienteRapido } from './clientes';
 import { obterDadosEmpresa } from './empresa';
 import { gerarPdfOrcamento, type OrcamentoParaPdf } from '../pdf/orcamento';
 import { enviarEmailComAnexo } from '../email/resend';
@@ -20,27 +21,78 @@ import { enviarEmailComAnexo } from '../email/resend';
  * O orcamento e a unica entrada de negocio: ao converter, item PONTUAL vira OS e
  * item RECORRENTE vira contrato + item de contrato. A origem fica gravada em
  * `Orcamento.contratoId`, e e por ela que a taxa de conversao da F1 e medida.
+ *
+ * Cliente pode vir pronto (clienteId) ou nascer na hora ("cadastrar agora"):
+ * o comercial nao perde a visita por falta de cadastro previo, e o cliente
+ * criado aqui e o MESMO registro de `Cadastros > Clientes`, so com menos
+ * campos preenchidos — o resto se completa depois.
  */
 
-const schemaOrcamento = z.object({
-  clienteId: obrigatorio('Cliente', 40),
-  condominioId: opcional(40),
-  titulo: obrigatorio('Título', 120),
-  descricao: opcional(2000),
-  validade: dataISO('Validade'),
-});
+const schemaOrcamento = z
+  .object({
+    clienteId: opcional(40),
+    clienteNovo: z.union([z.literal('0'), z.literal('1')]).default('0'),
+    novoClienteTipo: enumDe('Tipo de pessoa', ['PF', 'PJ'] as const).optional(),
+    novoClienteNome: opcional(160),
+    novoClienteDocumento: documento(),
+    novoClienteEmail: email(),
+    novoClienteTelefone: opcional(40),
+    condominioId: opcional(40),
+    titulo: obrigatorio('Título', 120),
+    descricao: opcional(2000),
+    validade: dataISO('Validade'),
+  })
+  .superRefine((d, ctx) => {
+    if (d.clienteNovo === '1') {
+      if (!d.novoClienteNome) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['novoClienteNome'], message: 'Nome do cliente é obrigatório.' });
+      }
+      if (!d.novoClienteTipo) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['novoClienteTipo'], message: 'Tipo de pessoa é obrigatório.' });
+      }
+    } else if (!d.clienteId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['clienteId'], message: 'Escolha um cliente, ou cadastre um novo.' });
+    }
+  });
 
 /** Edição livre só até o orçamento virar fato aprovado: depois disso a conversa muda. */
 const EDITAVEL = ['ABERTO', 'ENVIADO'] as const;
 
-function paraBanco(d: z.infer<typeof schemaOrcamento>) {
+function paraBanco(d: z.infer<typeof schemaOrcamento>, clienteId: string) {
   return {
-    clienteId: d.clienteId,
+    clienteId,
     condominioId: d.condominioId || null,
     titulo: d.titulo,
     descricao: d.descricao || null,
     validade: toDate(d.validade),
   };
+}
+
+/** Resolve o cliente do orçamento: usa o escolhido, ou cadastra um na hora. */
+async function resolverCliente(
+  d: z.infer<typeof schemaOrcamento>,
+): Promise<{ ok: true; clienteId: string } | { ok: false; erros: Record<string, string> }> {
+  if (d.clienteNovo !== '1') return { ok: true, clienteId: d.clienteId as string };
+
+  try {
+    const cliente = await criarClienteRapido({
+      tipo: d.novoClienteTipo as 'PF' | 'PJ',
+      nome: d.novoClienteNome as string,
+      documento: d.novoClienteDocumento,
+      email: d.novoClienteEmail,
+      telefone: d.novoClienteTelefone,
+      // Novo cliente PF ligado ao mesmo condomínio do orçamento: cobre o caso comum
+      // de "morador novo pedindo orçamento" sem perguntar o vínculo duas vezes.
+      condominioId: d.novoClienteTipo === 'PF' ? d.condominioId : null,
+    });
+    return { ok: true, clienteId: cliente.id };
+  } catch (erro) {
+    const coluna = colunaDuplicada(erro);
+    if (coluna === 'documento') {
+      return { ok: false, erros: { novoClienteDocumento: 'Já existe cliente com este CPF/CNPJ. Procure-o na lista em vez de cadastrar de novo.' } };
+    }
+    throw erro;
+  }
 }
 
 async function totalDosItens(c: Pick<Prisma.TransactionClient, 'orcamentoItem'>, orcamentoId: string): Promise<Money> {
@@ -59,16 +111,28 @@ export async function criarOrcamento(_prev: EstadoForm, fd: FormData): Promise<E
   const resultado = validar(schemaOrcamento, fd);
   if (!resultado.ok) return { erros: resultado.erros };
 
+  const cliente = await resolverCliente(resultado.dados);
+  if (!cliente.ok) return { erros: cliente.erros };
+
   try {
     const ultimo = await prisma.orcamento.aggregate({ _max: { numero: true } });
     const orcamento = await prisma.orcamento.create({
       data: {
-        ...paraBanco(resultado.dados),
+        ...paraBanco(resultado.dados, cliente.clienteId),
         numero: (ultimo._max.numero ?? 0) + 1,
         status: 'ABERTO',
       },
     });
+    if (resultado.dados.clienteNovo === '1') {
+      await registrarAuditoria(acesso.usuario, {
+        acao: 'cliente.criar',
+        entidade: 'cliente',
+        entidadeId: cliente.clienteId,
+        resumo: `cadastrado na hora, ao criar o orçamento #${orcamento.numero}`,
+      });
+    }
     revalidatePath('/orcamentos');
+    revalidatePath('/cadastros/clientes');
     redirect(`/orcamentos/${orcamento.id}?criado=1`);
   } catch (erro) {
     if (colunaDuplicada(erro)) return { erros: { _: 'O orçamento já foi criado neste instante. Recarregue a lista.' } };
@@ -88,7 +152,19 @@ export async function salvarOrcamento(id: string, _prev: EstadoForm, fd: FormDat
     return { erros: { _: `Orçamento ${atual.status.toLowerCase()} não pode mais ser editado: a conversão congela as condições.` } };
   }
 
-  await prisma.orcamento.update({ where: { id }, data: paraBanco(resultado.dados) });
+  const cliente = await resolverCliente(resultado.dados);
+  if (!cliente.ok) return { erros: cliente.erros };
+
+  await prisma.orcamento.update({ where: { id }, data: paraBanco(resultado.dados, cliente.clienteId) });
+  if (resultado.dados.clienteNovo === '1') {
+    await registrarAuditoria(acesso.usuario, {
+      acao: 'cliente.criar',
+      entidade: 'cliente',
+      entidadeId: cliente.clienteId,
+      resumo: `cadastrado na hora, ao editar o orçamento #${id}`,
+    });
+    revalidatePath('/cadastros/clientes');
+  }
   revalidar(id);
   return { mensagem: 'Orçamento atualizado.' };
 }

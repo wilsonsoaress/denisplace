@@ -50,6 +50,34 @@ async function gravar(id: string | null, dados: z.infer<typeof schema>) {
   return prisma.cliente.update({ where: { id }, data: registro });
 }
 
+export type ClienteRapidoInput = {
+  tipo: 'PF' | 'PJ';
+  nome: string;
+  documento?: string | null;
+  email?: string | null;
+  telefone?: string | null;
+  condominioId?: string | null;
+};
+
+/**
+ * Criação mínima usada no "cadastrar cliente agora" do orçamento: só o
+ * essencial (nome e tipo), o resto se completa depois em Cadastros > Clientes.
+ * Mesma tabela, mesmas regras (CPF/CNPJ único) — só menos campos na hora.
+ */
+export async function criarClienteRapido(dados: ClienteRapidoInput) {
+  return prisma.cliente.create({
+    data: {
+      tipo: dados.tipo,
+      nome: dados.nome,
+      documento: dados.documento || null,
+      email: dados.email || null,
+      telefone: dados.telefone || null,
+      condominioId: dados.condominioId || null,
+      ativo: true,
+    },
+  });
+}
+
 /** id null = criacao. Bind parcial pela pagina; useActionState chama (prev, formData). */
 export async function salvarCliente(id: string | null, _prev: EstadoForm, fd: FormData): Promise<EstadoForm> {
   const resultado = validar(schema, fd);
