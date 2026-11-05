@@ -12,6 +12,17 @@ Hoje o sistema é **single-tenant**: existe uma empresa só (Segplace), um `Dado
 
 **Valor entregue:** a equipe da Premura loga uma vez e acessa todas as empresas que atende, cada uma com seus próprios dados isolados; cada empresa-cliente (como a Segplace hoje) continua enxergando só os próprios dados, sem perceber que existem outras.
 
+### 1.1 Exemplo real: MR Instalações (serralheria)
+
+Segunda empresa atendida pela Premura, com perfil de negócio diferente da Segplace — confirma que o sistema não pode assumir "toda empresa tem contrato recorrente":
+
+- **MR Instalações Ltda ME**, CNPJ 18.223.203/0001-02 (Manoel Reis), serralheria: portão de correr, revisão de telhado, escada, etc.
+- Modelo comercial **100% pontual**: orçamento (ex.: "Portão de correr em duas folhas, 57m², R$ 13.580,00") é aprovado e vira **uma OS que cobra o valor total de uma vez** — não existe mensalidade nem competência recorrente. Validade do orçamento: 15 dias. Pagamento via PIX/transferência (chave PIX = o próprio CNPJ, Banco Bradesco).
+- **Contas a pagar dela inclui despesas administrativas genéricas**, não só custo de obra: folha de funcionários, boletos de fornecedor, **DARF** (imposto), internet, conta de celular — categorias que não existem hoje no `CategoriaContaPagar` (que foi desenhado só para o negócio de câmeras: equipamento, instalação, manutenção, comissão, frete, taxa, outro).
+- **Contas a receber dela é só OS criada de orçamento aprovado** — ela controla isso hoje numa planilha Google Sheets (modelo não anexado ainda; pendente — ver §7).
+
+**Gap técnico identificado:** no schema atual, `Titulo.contratoId` é **obrigatório** — todo título de cobrança depende de um Contrato por trás. Não existe caminho pra gerar cobrança direto de uma OS pontual sem contrato. Isso precisa ser resolvido na fundação multiempresa (ver §3.6), senão a MR Instalações não consegue emitir cobrança nenhuma no sistema.
+
 ---
 
 ## 2. Princípios
@@ -49,6 +60,23 @@ Controla quais módulos aparecem no menu de cada empresa. O menu final de algué
 - Novo campo opcional de anexo no lançamento: **recibo assinado** (hoje só existe o anexo de "NF de entrada"; passa a aceitar também o comprovante assinado devolvido pelo funcionário, além do holerite recebido da Contabilidade, que entra como o anexo já existente).
 - Documento avulso por competência, **sem nenhum cálculo** — exatamente como confirmado: Premura recebe o holerite pronto, agenda o pagamento no banco, controla o recibo de volta.
 - Opcional, pra organizar (não bloqueia a entrega mínima): cadastro simples de **`Funcionario`** por empresa (nome, documento, cargo, ativo/desligado), pra ter histórico de pagamento por pessoa em vez de texto livre todo mês.
+
+### 3.6 Categorias de Contas a Pagar precisam generalizar
+
+O `CategoriaContaPagar` atual (`EQUIPAMENTO, INSTALACAO, MANUTENCAO, COMISSAO, FRETE, TAXA, OUTRO`) foi desenhado só pro negócio de câmeras da Segplace. A MR Instalações confirma que uma empresa-cliente qualquer tem despesas administrativas genéricas que não se encaixam aí: **boleto de fornecedor, DARF (imposto), internet, telefone/celular**, além da folha de pagamento (§3.5). Duas abordagens possíveis:
+
+- **(a) Ampliar o enum global** com categorias genéricas que servem qualquer empresa: `FOLHA_PAGAMENTO`, `IMPOSTO`, `UTILIDADE` (água/luz/internet/telefone), `BOLETO_FORNECEDOR`, mantendo as específicas de câmeras (`EQUIPAMENTO`, `INSTALACAO`, etc.) pra quem precisar.
+- **(b) Categoria customizável por empresa** (tabela em vez de enum fixo) — mais flexível a longo prazo, mais trabalho agora.
+
+Sugestão: começar com **(a)** — resolve o caso real sem esperar um mecanismo de customização que ninguém pediu ainda; migrar pra (b) só se aparecer uma necessidade concreta de categoria muito específica de uma empresa só.
+
+### 3.7 Cobrança direta de OS pontual, sem Contrato (gap crítico pra MR Instalações)
+
+Hoje `Titulo.contratoId` é obrigatório — toda cobrança nasce de um Contrato vigente com competência mensal. Isso cobre bem o modelo da Segplace (mensalidade recorrente), mas **não cobre uma empresa 100% pontual como a MR Instalações**, onde orçamento aprovado vira OS e a cobrança é o valor total da OS, de uma vez, sem mensalidade.
+
+Proposta: `Titulo.contratoId` passa a ser **opcional**, e ganha um `ordemServicoId` opcional também — um título nasce **ou** de uma competência de contrato (como hoje), **ou** diretamente de uma OS concluída (caso novo). O valor, nesse segundo caso, vem do próprio orçamento aprovado que originou a OS. A grade de contas a receber e a matriz de inadimplência passam a mostrar os dois tipos sem distinção visual forçada — devedor, valor, vencimento, pago/não continuam os mesmos campos.
+
+Isso **entra no Bloco A** (fundação), não pode esperar o Bloco B: sem isso, a MR Instalações não consegue emitir cobrança nenhuma no sistema desde o primeiro dia.
 
 ---
 
@@ -95,8 +123,10 @@ Controla quais módulos aparecem no menu de cada empresa. O menu final de algué
 | 1 | Índices de reajuste (IPCA/IGP-M/INPC) ficam compartilhados entre empresas ou duplicados por empresa? | Afeta o schema de `IndiceReajuste`/`IndiceValor` | **Compartilhado** — são públicos e iguais pra todo mundo; duplicar é recadastro sem ganho |
 | 2 | A trilha de auditoria da Premura deve ter uma visão consolidada entre empresas, ou só por empresa ativa? | Afeta tela de auditoria e eventual relatório da própria Premura | A definir com você — nenhuma das duas é mais trabalhosa, é questão de necessidade real |
 | 3 | O cadastro de `Funcionario` (nome, cargo, ativo) é necessário já na primeira entrega, ou o texto livre no lançamento de contas a pagar resolve por enquanto? | Define se §3.5 entra completo ou simplificado na primeira versão | Sugestão: começar com texto livre (mais rápido), promover pra cadastro se o volume de funcionários justificar |
-| 4 | Nome/CNPJ da(s) próxima(s) empresa(s) a entrar além da Segplace, pra já cadastrar de verdade na implantação | Não trava o desenho, só a carga de dados real | Pendente de você |
+| 4 | Nome/CNPJ da(s) próxima(s) empresa(s) a entrar além da Segplace, pra já cadastrar de verdade na implantação | Não trava o desenho, só a carga de dados real | **Respondido**: MR Instalações Ltda ME, CNPJ 18.223.203/0001-02 |
 | 5 | Quem hoje é "da Premura" entre os usuários que já existem (`admin/comercial/financeiro/tecnico@denisplace.com.br`)? Ficam como equipe local da Segplace, ou algum deles vira Premura? | Define a migração dos usuários atuais | Assumido no momento: todos continuam como equipe **local** da Segplace; contas Premura seriam criadas à parte |
+| 6 | O modelo de planilha Google Sheets que a MR Instalações usa pra contas a receber — pode anexar o arquivo (ou um print/export) pra eu conferir se a grade de contas a receber atual já cobre os campos que ela usa? | Evita descobrir campo faltante só na homologação | Pendente de anexo |
+| 7 | A MR Instalações usa contratos recorrentes pra algum serviço (ex.: manutenção periódica), ou é 100% pontual (orçamento → OS → cobrança única)? | Define se o módulo "Contratos" precisa estar habilitado pra ela, ou se só Orçamentos + Contas a receber (via §3.7) resolve | A confirmar — pelos 2 orçamentos enviados, parece 100% pontual |
 
 ---
 
@@ -108,13 +138,15 @@ Controla quais módulos aparecem no menu de cada empresa. O menu final de algué
 4. Dar acesso de um papel a um usuário local numa empresa nova não altera o acesso dele nas empresas que já tinha.
 5. Lançar uma "Folha de pagamento" em Contas a Pagar com holerite e recibo assinado anexados, e ver aparecer na grade/relatório daquela empresa, na categoria certa, sem nenhum cálculo rodando.
 6. Rodar a operação inteira da Segplace (contratos, cobrança, orçamentos, PDF, e-mail) depois da migração, sem regressão nenhuma no comportamento de hoje.
+7. Na MR Instalações: aprovar um orçamento pontual (ex.: o modelo "Portão de correr"), gerar a OS, e emitir um título de cobrança **direto da OS**, sem precisar criar um Contrato artificial só pra isso.
+8. Lançar em Contas a Pagar da MR Instalações um DARF e uma conta de internet, nas categorias novas, sem forçar nenhuma delas em "outro".
 
 ---
 
 ## 9. Sequência de implantação sugerida
 
-1. **Bloco A — Fundação multiempresa.** `Empresa`, `empresaId` espalhado pelas tabelas de negócio, `UsuarioEmpresa` + `User.ehPremura`, seletor de empresa ativa, migração dos dados atuais da Segplace pro primeiro registro de `Empresa`. **Maior parte do esforço**: revisar toda consulta/action existente pra filtrar por empresa — não é o schema, é o volume de telas já construídas (clientes, condomínios, contratos, orçamentos, financeiro, auditoria, dashboard, PDF/e-mail).
-2. **Bloco B — Módulos habilitáveis por empresa + Folha de pagamento.** `EmpresaModulo`, tela de gestão de módulos por empresa, categoria "Folha de pagamento" em Contas a Pagar com o anexo extra.
+1. **Bloco A — Fundação multiempresa.** `Empresa`, `empresaId` espalhado pelas tabelas de negócio, `UsuarioEmpresa` + `User.ehPremura`, seletor de empresa ativa, migração dos dados atuais da Segplace pro primeiro registro de `Empresa`, e **cobrança direta de OS pontual sem Contrato** (§3.7) — esse último entra aqui e não no Bloco B porque sem ele a MR Instalações não emite cobrança nenhuma desde o início. Maior parte do esforço: revisar toda consulta/action existente pra filtrar por empresa — não é o schema, é o volume de telas já construídas (clientes, condomínios, contratos, orçamentos, financeiro, auditoria, dashboard, PDF/e-mail).
+2. **Bloco B — Módulos habilitáveis por empresa + Folha de pagamento + categorias genéricas.** `EmpresaModulo`, tela de gestão de módulos por empresa, categoria "Folha de pagamento" e as novas categorias administrativas (imposto, utilidade, boleto de fornecedor) em Contas a Pagar, com o anexo extra de recibo.
 3. **Homologação com dado real.** Cadastrar a segunda empresa de verdade (a que tem funcionários) e rodar em paralelo por pelo menos uma competência antes de considerar fechado — mesmo critério de prudência que já foi usado na implantação original (`escopo-sistema-fases.md` §7: "não desligar o paralelo até bater o fechamento manual").
 
 Sem estimativa de dias por enquanto — melhor medir depois que o Bloco A estiver desenhado em detalhe (schema + lista exata de telas/actions a revisar), já que o grosso do custo é volume de revisão, não complexidade nova.
